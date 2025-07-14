@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEO Keyword Extractor AI</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-search me-3"></i>SEO Keyword Extractor AI
+            </h1>
+            <p class="lead text-muted">
+                Extract the top 10 SEO keywords from any webpage using advanced AI-powered analysis
+            </p>
+        </div>
+
+        <!-- Main Form -->
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow-lg">
+                    <div class="card-body p-4">
+                        <form id="extractForm" method="POST" action="/extract">
+                            <div class="mb-4">
+                                <label for="url" class="form-label h5">
+                                    <i class="fas fa-link me-2"></i>Website URL
+                                </label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-globe"></i>
+                                    </span>
+                                    <input 
+                                        type="url" 
+                                        class="form-control" 
+                                        id="url" 
+                                        name="url" 
+                                        placeholder="Enter website URL (e.g., example.com or https://example.com)"
+                                        value="{{ url or '' }}"
+                                        required
+                                    >
+                                </div>
+                                <div class="form-text">
+                                    Enter any public website URL to analyze its content and extract keywords
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg" id="extractBtn">
+                                    <i class="fas fa-magic me-2"></i>Extract Keywords
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="text-center mt-4" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Analyzing webpage content...</p>
+        </div>
+
+        <!-- Error Message -->
+        {% if error %}
+        <div class="row justify-content-center mt-4">
+            <div class="col-lg-8">
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Error:</strong> {{ error }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Results -->
+        {% if keywords %}
+        <div class="row justify-content-center mt-4">
+            <div class="col-lg-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Top 10 Keywords Extracted
+                        </h5>
+                        <small class="text-light">
+                            <i class="fas fa-link me-1"></i>{{ url }}
+                        </small>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            {% for keyword in keywords %}
+                            <div class="col-md-6">
+                                <div class="keyword-item">
+                                    <span class="keyword-number">{{ loop.index }}</span>
+                                    <span class="keyword-text">{{ keyword }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Copy Button -->
+                        <div class="mt-4">
+                            <button class="btn btn-outline-secondary" onclick="copyKeywords()">
+                                <i class="fas fa-copy me-2"></i>Copy Keywords
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Features Section -->
+        <div class="row mt-5">
+            <div class="col-12">
+                <h3 class="text-center mb-4">Why Choose Our SEO Keyword Extractor?</h3>
+                <div class="row g-4">
+                    <div class="col-md-3 text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-robot fa-3x text-primary mb-3"></i>
+                        </div>
+                        <h5>AI-Powered</h5>
+                        <p class="text-muted">Uses advanced YAKE algorithm for accurate keyword extraction</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-bolt fa-3x text-warning mb-3"></i>
+                        </div>
+                        <h5>Lightning Fast</h5>
+                        <p class="text-muted">Get results in seconds with our optimized processing</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-free-code-camp fa-3x text-success mb-3"></i>
+                        </div>
+                        <h5>100% Free</h5>
+                        <p class="text-muted">No sign-up required, completely free to use</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-shield-alt fa-3x text-info mb-3"></i>
+                        </div>
+                        <h5>Secure</h5>
+                        <p class="text-muted">Your data is processed securely and not stored</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-5 py-4 text-center text-muted border-top">
+            <p>&copy; 2025 SEO Keyword Extractor AI. Built with Flask, YAKE, and Bootstrap.</p>
+        </footer>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

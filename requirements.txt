@@ -1,0 +1,6 @@
+flask
+flask-cors
+trafilatura
+yake
+requests
+gunicorn
