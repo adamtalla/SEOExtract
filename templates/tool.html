@@ -1,0 +1,185 @@
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyword Extraction Tool - SEO Keyword Extractor AI</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-search me-2"></i>SEO Keyword Extractor AI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/plans">Plans</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/faq">FAQ</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/about">About</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <a href="/dashboard" class="btn btn-outline-light me-2">Dashboard</a>
+                    <a href="/login" class="btn btn-outline-light me-2">Login</a>
+                    <a href="/register" class="btn btn-primary">Create Account</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-search me-3"></i>SEO Keyword Extractor AI
+            </h1>
+            <p class="lead text-muted">
+                Extract the top 10 SEO keywords from any webpage using advanced AI-powered analysis
+            </p>
+        </div>
+
+        <!-- Usage Stats (for logged in users) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <strong>Plan:</strong> Free
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Keywords Left:</strong> 5/5
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Links Left:</strong> 3/3
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/plans" class="btn btn-sm btn-primary">Upgrade</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Form -->
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow-lg">
+                    <div class="card-body p-4">
+                        {% if error %}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+                        </div>
+                        {% endif %}
+
+                        <form id="extractForm" method="POST" action="/extract">
+                            <div class="mb-4">
+                                <label for="url" class="form-label h5">
+                                    <i class="fas fa-link me-2"></i>Website URL
+                                </label>
+                                <input type="url" class="form-control form-control-lg" id="url" name="url" 
+                                       placeholder="https://example.com" required 
+                                       value="{{ url if url else '' }}">
+                                <div class="form-text">
+                                    Enter any website URL to extract its top SEO keywords
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg w-100" id="extractBtn">
+                                <i class="fas fa-search me-2"></i>Extract Keywords
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        {% if keywords %}
+        <div class="row justify-content-center mt-5">
+            <div class="col-lg-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-check-circle me-2"></i>Keywords extracted from: 
+                            <a href="{{ url }}" target="_blank" class="text-white">{{ url }}</a>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-muted mb-0">Top SEO Keywords:</h6>
+                            <button class="btn btn-outline-primary btn-sm" onclick="copyKeywords()">
+                                <i class="fas fa-copy me-1"></i>Copy All
+                            </button>
+                        </div>
+                        <div class="row" id="keywordsList">
+                            {% for keyword in keywords %}
+                            <div class="col-md-6 mb-2">
+                                <div class="badge bg-primary fs-6 w-100 text-start p-2">
+                                    {{ loop.index }}. {{ keyword }}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Features Section -->
+        <div class="row mt-5 mb-5">
+            <div class="col-md-4">
+                <div class="text-center">
+                    <div class="feature-icon">
+                        <i class="fas fa-brain fa-3x text-primary mb-3"></i>
+                    </div>
+                    <h5>AI-Powered</h5>
+                    <p class="text-muted">Advanced YAKE algorithm for precise keyword extraction</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-center">
+                    <div class="feature-icon">
+                        <i class="fas fa-bolt fa-3x text-warning mb-3"></i>
+                    </div>
+                    <h5>Lightning Fast</h5>
+                    <p class="text-muted">Get results in seconds, not minutes</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-center">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt fa-3x text-info mb-3"></i>
+                    </div>
+                    <h5>Secure</h5>
+                    <p class="text-muted">Your data is processed securely and not stored</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-5 py-4 text-center text-muted border-top">
+            <p>&copy; 2025 SEO Keyword Extractor AI. Built with Flask, YAKE, and Bootstrap.</p>
+        </footer>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
