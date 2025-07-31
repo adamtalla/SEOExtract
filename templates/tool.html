@@ -237,22 +237,84 @@
         {% endif %}
                                 
 
-        <!-- API Access Notice for Premium Users -->
-        {% if user_plan == 'premium' and keywords %}
+        <!-- API Usage Section for Premium Users -->
+        {% if user_plan == 'premium' %}
         <div class="row justify-content-center mt-4">
             <div class="col-lg-8">
-                <div class="card shadow-lg">
+                <div class="card shadow-lg border-warning">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="mb-0">
-                            <i class="fas fa-code me-2"></i>API Access Available
+                            <i class="fas fa-code me-2"></i>📡 API Access (Premium Only)
                         </h5>
                     </div>
                     <div class="card-body">
-                        <p><strong>Your Premium plan includes API access!</strong></p>
-                        <p>Manage your API keys and view usage examples in your <a href="{{ url_for('dashboard') }}" class="text-decoration-none">Dashboard</a>.</p>
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-warning">
-                            <i class="fas fa-key me-1"></i>Manage API Keys
-                        </a>
+                        <p class="mb-3"><strong>Use our API to extract SEO keywords programmatically from any public webpage:</strong></p>
+                        
+                        <!-- Security Warning -->
+                        <div class="alert alert-info mb-3">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            <strong>Security Notice:</strong> All API requests require authentication. Never share your API tokens publicly or in client-side code.
+                        </div>
+
+                        <!-- API Example -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">API Example:</h6>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="copyApiExample()" id="copyApiBtn">
+                                    <i class="fas fa-copy me-1"></i>Copy
+                                </button>
+                            </div>
+                            <pre class="bg-dark text-white p-3 rounded"><code id="apiExample">curl -X POST {{ request.url_root }}api/extract_keywords \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_TOKEN_HERE" \
+  -d '{"url": "https://example.com"}'</code></pre>
+                        </div>
+
+                        <!-- Response Example -->
+                        <div class="mb-3">
+                            <h6 class="mb-2">Expected Response:</h6>
+                            <pre class="bg-secondary text-white p-3 rounded small"><code>{
+  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "url": "https://example.com",
+  "seo_suggestions": [
+    {
+      "type": "content",
+      "priority": "high", 
+      "suggestion": "Optimize your title tag..."
+    }
+  ],
+  "plan": "premium",
+  "success": true
+}</code></pre>
+                        </div>
+
+                        <!-- API Info -->
+                        <div class="row text-center">
+                            <div class="col-md-4 mb-2">
+                                <strong>Method:</strong><br>
+                                <span class="badge bg-primary">POST</span>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <strong>Content-Type:</strong><br>
+                                <span class="badge bg-info">application/json</span>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <strong>Auth Required:</strong><br>
+                                <span class="badge bg-warning text-dark">Bearer Token</span>
+                            </div>
+                        </div>
+
+                        <hr class="my-3">
+
+                        <!-- Action Buttons -->
+                        <div class="text-center">
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-warning me-2">
+                                <i class="fas fa-key me-1"></i>Get API Key
+                            </a>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-warning">
+                                <i class="fas fa-chart-line me-1"></i>View Usage Stats
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

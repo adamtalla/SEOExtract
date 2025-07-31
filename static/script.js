@@ -113,10 +113,27 @@ function exportResults(format = 'pdf') {
 
 // Copy API example
 function copyApiExample() {
-    const codeBlock = document.querySelector('pre code');
+    const codeBlock = document.getElementById('apiExample');
     if (codeBlock) {
         navigator.clipboard.writeText(codeBlock.textContent).then(() => {
-            showToast('API example copied!');
+            // Update button to show success
+            const btn = document.getElementById('copyApiBtn');
+            if (btn) {
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-success');
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-secondary');
+                }, 2000);
+            }
+            showToast('API example copied to clipboard!', 'success');
+        }).catch(err => {
+            console.error('Failed to copy API example: ', err);
+            showToast('Failed to copy API example', 'error');
         });
     }
 }
