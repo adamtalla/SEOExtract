@@ -404,11 +404,13 @@ def extract_keywords():
         if limits['seo_suggestions'] > 0:
             # Use AI-powered suggestions for premium users, rule-based for others
             from ai_seo_analyzer import AISEOAnalyzer
-            
+
             ai_analyzer = AISEOAnalyzer()
+            # Ensure keywords is always a list
+            keywords_list = keywords if isinstance(keywords, list) else []
             seo_suggestions = ai_analyzer.generate_hybrid_suggestions(
-                url, seo_data, keywords, plan)
-            
+                url, seo_data, keywords_list, plan)
+
             # Also generate detailed audit results for export
             from seo_audit import SEOAuditor
             auditor = SEOAuditor()
@@ -428,7 +430,7 @@ def extract_keywords():
             auditor = SEOAuditor()
             audit_results = auditor.analyze_page(
                 seo_data, keywords, seo_data.get('content_text', ''))
-            
+
             if isinstance(audit_results, list):
                 audit_results = audit_results[:limits['seo_suggestions']]
                 for result in audit_results:
@@ -571,10 +573,12 @@ def api_extract_keywords():
         seo_suggestions = []
         if limits['seo_suggestions'] > 0:
             from ai_seo_analyzer import AISEOAnalyzer
-            
+
             ai_analyzer = AISEOAnalyzer()
+            # Ensure keywords is always a list
+            keywords_list = keywords if isinstance(keywords, list) else []
             seo_suggestions = ai_analyzer.generate_hybrid_suggestions(
-                url, seo_data, keywords, plan)
+                url, seo_data, keywords_list, plan)
 
         # Increment usage
         increment_usage(user['id'], 'audit')
