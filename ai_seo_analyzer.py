@@ -2,8 +2,8 @@
 import os
 import json
 import logging
-import openai
 from typing import Dict, List
+import openai
 
 class AISEOAnalyzer:
     def __init__(self):
@@ -73,12 +73,9 @@ class AISEOAnalyzer:
         # Get content sample (first 500 chars)
         content_sample = seo_data.get('content_text', '')[:500] if seo_data.get('content_text') else ''
         
-        # Format headings for display
-        headings_text = ""
-        headings = seo_data.get('headings', {})
-        for level, heading_list in headings.items():
-            if heading_list:
-                headings_text += f"{level.upper()}: {', '.join(heading_list[:3])}; "
+        # Format headings
+        headings = seo_data.get('headings', [])
+        headings_text = ', '.join(headings[:10]) if headings else ''
         
         prompt = f"""You are an expert SEO analyst.
 
@@ -175,38 +172,39 @@ Return the output as a JSON array of objects like:
             })
         
         # Headings analysis
-        headings = seo_data.get('headings', {})
-        h1_tags = headings.get('h1', [])
-        if not h1_tags:
+        headings = seo_data.get('headings', [])
+        if not headings:
             suggestions.append({
                 'type': 'Structure',
                 'priority': 'High',
-                'suggestion': 'Add a clear H1 heading that includes your primary keyword.'
+                'suggestion': 'Add proper heading structure (H1, H2, H3) to organize content hierarchy.'
             })
-        elif len(h1_tags) > 1:
+        
+        # Content analysis
+        content = seo_data.get('content_text', '')
+        if content and len(content.split()) < 300:
             suggestions.append({
-                'type': 'Structure',
+                'type': 'Content',
                 'priority': 'Medium',
-                'suggestion': f'Multiple H1 tags found ({len(h1_tags)}). Use only one H1 per page.'
+                'suggestion': f'Content is short ({len(content.split())} words). Aim for 300+ words for better SEO.'
             })
         
         # Keywords analysis
-        if keywords:
-            content_text = seo_data.get('content_text', '').lower()
-            for keyword in keywords[:3]:  # Check top 3 keywords
-                if keyword.lower() not in content_text:
-                    suggestions.append({
-                        'type': 'Content',
-                        'priority': 'Medium',
-                        'suggestion': f'Include the keyword "{keyword}" naturally in your content for better relevance.'
-                    })
+        if keywords and content:
+            keyword_in_content = any(keyword.lower() in content.lower() for keyword in keywords[:3])
+            if not keyword_in_content:
+                suggestions.append({
+                    'type': 'Keywords',
+                    'priority': 'High',
+                    'suggestion': f'Include your top keywords ({", ".join(keywords[:3])}) naturally in your content.'
+                })
         
-        # Mobile friendliness
-        if not seo_data.get('mobile_friendly', True):
+        # Image analysis
+        if not seo_data.get('images_with_alt', []):
             suggestions.append({
-                'type': 'Mobile',
-                'priority': 'High',
-                'suggestion': 'Add viewport meta tag for mobile-friendly display.'
+                'type': 'Structure',
+                'priority': 'Medium',
+                'suggestion': 'Add descriptive alt text to images for better accessibility and SEO.'
             })
         
-        return suggestions[:8]  # Return up to 8 suggestions
+        return suggestions[:8]  # Limit to 8 suggestions
