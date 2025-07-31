@@ -113,17 +113,59 @@ function exportResults(format = 'pdf') {
 
 // Copy API example
 function copyApiExample() {
-    const apiCode = document.querySelector('pre code').textContent;
-
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(apiCode).then(() => {
-            showToast('API example copied to clipboard!', 'success');
-        }).catch(err => {
-            console.error('Failed to copy: ', err);
-            fallbackCopy(apiCode);
+    const codeBlock = document.querySelector('pre code');
+    if (codeBlock) {
+        navigator.clipboard.writeText(codeBlock.textContent).then(() => {
+            showToast('API example copied!');
         });
+    }
+}
+
+function toggleApiKey() {
+    const input = document.getElementById('apiKeyInput');
+    const icon = document.getElementById('apiKeyToggle');
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
     } else {
-        fallbackCopy(apiCode);
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+
+function copyApiKey() {
+    const input = document.getElementById('apiKeyInput');
+    navigator.clipboard.writeText(input.value).then(() => {
+        showToast('API key copied!');
+    });
+}
+
+function regenerateApiKey() {
+    if (confirm('This will invalidate your current API key. Any applications using it will stop working. Continue?')) {
+        fetch('/regenerate_api_key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('apiKeyInput').value = data.api_key;
+                // Update the example code
+                const codeBlock = document.querySelector('pre code');
+                if (codeBlock) {
+                    codeBlock.textContent = codeBlock.textContent.replace(/Bearer [^\s"]+/, `Bearer ${data.api_key}`);
+                }
+                showToast('API key regenerated successfully!');
+            } else {
+                showToast('Failed to regenerate API key: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            showToast('Error regenerating API key: ' + error.message, 'error');
+        });
     }
 }
 

@@ -1,5 +1,6 @@
 import os
 import logging
+import secrets
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from flask_cors import CORS
@@ -229,6 +230,54 @@ def increment_usage(user_id, action='audit'):
             session[key] = session.get(key, 0) + 1
 
 
+def generate_api_key():
+    """Generate a secure API key"""
+    return f"sk-{secrets.token_urlsafe(32)}"
+
+
+def get_user_by_api_key(api_key):
+    """Get user data from API key"""
+    if not api_key or not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    
+    try:
+        # Query user_profiles table for the API key
+        user_data = supabase_request('GET', f'user_profiles?api_key=eq.{api_key}&select=id,email,plan,subscription_status')
+        if user_data and len(user_data) > 0:
+            user = user_data[0]
+            return {
+                'id': user['id'],
+                'email': user['email'],
+                'plan': user['plan']
+            }
+    except Exception as e:
+        logging.error(f"Error getting user by API key: {str(e)}")
+    
+    return None
+
+
+def api_key_required(f):
+    """Decorator to require API key for API endpoints"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Missing or invalid Authorization header. Use: Authorization: Bearer YOUR_API_KEY'}), 401
+        
+        api_key = auth_header.replace('Bearer ', '').strip()
+        user = get_user_by_api_key(api_key)
+        
+        if not user:
+            return jsonify({'error': 'Invalid API key'}), 401
+        
+        # Store user in request context
+        request.current_user = user
+        return f(*args, **kwargs)
+    
+    return decorated_function
+
+
 def initialize_new_user(user_id, email, plan='free'):
     """Initialize a new user with their starting audit allowance"""
     if not user_id or not email:
@@ -243,13 +292,16 @@ def initialize_new_user(user_id, email, plan='free'):
                 logging.info(f"User {email} already exists, skipping initialization")
                 return True
                 
-            # Create user profile
+            # Create user profile with API key
+            api_key = generate_api_key()
             user_profile = {
                 'id': user_id,
                 'email': email,
                 'plan': plan,
                 'subscription_status': 'active' if email == ADMIN_EMAIL else 'inactive',
-                'auto_upgrade': True
+                'auto_upgrade': True,
+                'api_key': api_key,
+                'created_at': datetime.now().isoformat()
             }
             
             profile_result = supabase_request('POST', 'user_profiles', user_profile)
@@ -420,6 +472,17 @@ def dashboard():
     user = get_user_from_session()
     usage = get_user_usage(user['id'])
     plan = user.get('plan', 'free')
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+
+    # Get user's API key if they have API access
+    api_key = None
+    if limits['api_access'] and SUPABASE_URL and SUPABASE_KEY:
+        try:
+            user_data = supabase_request('GET', f'user_profiles?id=eq.{user["id"]}&select=api_key')
+            if user_data and len(user_data) > 0:
+                api_key = user_data[0].get('api_key')
+        except Exception as e:
+            logging.error(f"Error getting API key: {str(e)}")
 
     # Mock recent analyses data
     recent_analyses = []
@@ -428,6 +491,8 @@ def dashboard():
                            user=user,
                            usage=usage,
                            user_plan=plan,
+                           limits=limits,
+                           api_key=api_key,
                            recent_analyses=recent_analyses)
 
 
@@ -701,11 +766,11 @@ def extract_keywords():
 
 
 @app.route('/api/extract_keywords', methods=['POST'])
-@login_required
+@api_key_required
 def api_extract_keywords():
-    """API endpoint for keyword extraction"""
+    """API endpoint for keyword extraction using API key authentication"""
     try:
-        user = get_user_from_session()
+        user = request.current_user
         plan = user.get('plan', 'free')
         limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
@@ -730,22 +795,40 @@ def api_extract_keywords():
 
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
-        from seo_audit import SEOAuditor
 
-        all_keywords = extract_keywords_from_url(url)
+        all_keywords = extract_keywords_from_url(url, limits['keywords_per_audit'])
         seo_data = get_seo_metadata(url)
-        keywords = all_keywords[:limits['keywords_per_audit']]
+        keywords = all_keywords[:limits['keywords_per_audit']] if isinstance(all_keywords, list) else []
 
         # Generate SEO suggestions using AI analyzer
         seo_suggestions = []
+        audit_results = []
+        
         if limits['seo_suggestions'] > 0:
-            from ai_seo_analyzer import AISEOAnalyzer
-
-            ai_analyzer = AISEOAnalyzer()
-            # Ensure keywords is always a list
-            keywords_list = keywords if isinstance(keywords, list) else []
-            seo_suggestions = ai_analyzer.generate_hybrid_suggestions(
-                url, seo_data, keywords_list, plan)
+            try:
+                from ai_seo_analyzer import AISEOAnalyzer
+                ai_analyzer = AISEOAnalyzer()
+                seo_suggestions = ai_analyzer.generate_hybrid_suggestions(url, seo_data, keywords, plan)
+                
+                # Limit suggestions based on plan
+                if isinstance(seo_suggestions, list):
+                    seo_suggestions = seo_suggestions[:limits['seo_suggestions']]
+                else:
+                    seo_suggestions = []
+                    
+                # Also generate audit results
+                from seo_audit import SEOAuditor
+                auditor = SEOAuditor()
+                audit_results = auditor.analyze_page(seo_data, keywords, seo_data.get('content_text', ''))
+                if isinstance(audit_results, list):
+                    audit_results = audit_results[:limits['seo_suggestions']]
+                else:
+                    audit_results = []
+                    
+            except Exception as seo_error:
+                logging.error(f"Error generating SEO suggestions: {str(seo_error)}")
+                seo_suggestions = []
+                audit_results = []
 
         # Increment usage
         increment_usage(user['id'], 'audit')
@@ -754,8 +837,10 @@ def api_extract_keywords():
             'keywords': keywords,
             'url': url,
             'seo_suggestions': seo_suggestions,
+            'audit_results': audit_results,
             'plan': plan,
-            'usage': get_user_usage(user['id'])
+            'usage': get_user_usage(user['id']),
+            'success': True
         })
 
     except Exception as e:
@@ -920,6 +1005,39 @@ def admin_users():
             flash('Error fetching users from database', 'danger')
     
     return render_template('admin/users.html', users=users, user=user)
+
+
+@app.route('/regenerate_api_key', methods=['POST'])
+@login_required
+def regenerate_api_key():
+    """Regenerate user's API key"""
+    user = get_user_from_session()
+    plan = user.get('plan', 'free')
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    
+    if not limits['api_access']:
+        return jsonify({'error': 'API access requires Premium plan'}), 403
+    
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            new_api_key = generate_api_key()
+            update_data = {
+                'api_key': new_api_key,
+                'updated_at': datetime.now().isoformat()
+            }
+            
+            response = supabase_request('PATCH', f'user_profiles?id=eq.{user["id"]}', update_data)
+            
+            if response:
+                return jsonify({'api_key': new_api_key, 'success': True})
+            else:
+                return jsonify({'error': 'Failed to regenerate API key'}), 500
+                
+        except Exception as e:
+            logging.error(f"Error regenerating API key: {str(e)}")
+            return jsonify({'error': 'Failed to regenerate API key'}), 500
+    
+    return jsonify({'error': 'API key management unavailable'}), 500
 
 
 @app.route('/admin/change_plan/<user_id>/<new_plan>')

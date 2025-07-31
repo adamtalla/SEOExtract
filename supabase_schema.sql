@@ -1,4 +1,3 @@
-
 -- Supabase Database Schema for SEOExtract
 
 -- Create enum for subscription plans
@@ -181,13 +180,13 @@ DECLARE
 BEGIN
     -- Get user record
     SELECT * INTO user_record FROM public.user_profiles WHERE email = user_email;
-    
+
     IF NOT FOUND THEN
         RETURN FALSE;
     END IF;
-    
+
     old_plan := user_record.plan;
-    
+
     -- Update user plan
     UPDATE public.user_profiles 
     SET 
@@ -198,11 +197,11 @@ BEGIN
         current_period_end = COALESCE(period_end, NOW() + INTERVAL '1 month'),
         updated_at = NOW()
     WHERE email = user_email;
-    
+
     -- Log the plan change
     INSERT INTO public.plan_changes (user_id, from_plan, to_plan, change_reason)
     VALUES (user_record.id, old_plan, new_plan, 'payment');
-    
+
     RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -222,7 +221,7 @@ BEGIN
         -- Log the change
         INSERT INTO public.plan_changes (user_id, from_plan, to_plan, change_reason)
         VALUES (user_record.id, user_record.plan, user_record.plan_change_pending, 'scheduled');
-        
+
         -- Apply the change
         UPDATE public.user_profiles 
         SET 
@@ -231,10 +230,10 @@ BEGIN
             plan_change_effective_date = NULL,
             updated_at = NOW()
         WHERE id = user_record.id;
-        
+
         changes_processed := changes_processed + 1;
     END LOOP;
-    
+
     RETURN changes_processed;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -249,11 +248,11 @@ DECLARE
     user_record RECORD;
 BEGIN
     SELECT * INTO user_record FROM public.user_profiles WHERE email = user_email;
-    
+
     IF NOT FOUND THEN
         RETURN FALSE;
     END IF;
-    
+
     IF immediate THEN
         -- Immediate downgrade to free
         UPDATE public.user_profiles 
@@ -262,7 +261,7 @@ BEGIN
             subscription_status = 'cancelled',
             updated_at = NOW()
         WHERE email = user_email;
-        
+
         INSERT INTO public.plan_changes (user_id, from_plan, to_plan, change_reason)
         VALUES (user_record.id, user_record.plan, 'free', 'cancellation');
     ELSE
@@ -275,7 +274,7 @@ BEGIN
             updated_at = NOW()
         WHERE email = user_email;
     END IF;
-    
+
     RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -331,3 +330,4 @@ CREATE INDEX idx_payments_status ON public.payments(status);
 CREATE INDEX idx_plan_changes_user_id ON public.plan_changes(user_id);
 CREATE INDEX idx_user_usage_user_month ON public.user_usage(user_id, month);
 CREATE INDEX idx_audit_history_user_id ON public.audit_history(user_id);
+ALTER TABLE public.user_profiles ADD COLUMN api_key TEXT UNIQUE;

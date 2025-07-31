@@ -158,7 +158,7 @@
         {% endif %}
 
         <!-- SEO Suggestions Section -->
-        {% if user_plan != 'free' and seo_suggestions and seo_suggestions|length > 0 %}
+        {% if seo_suggestions and seo_suggestions|length > 0 and user_plan != 'free' %}
         <div class="row justify-content-center mt-4">
             <div class="col-lg-8">
                 <div class="card shadow-lg">
@@ -198,7 +198,7 @@
                 </div>
             </div>
         </div>
-        {% elif user_plan == 'free' and (keywords or audit_results) %}
+        {% elif keywords and user_plan == 'free' %}
         <!-- Upgrade prompt for free users -->
         <div class="row justify-content-center mt-4">
             <div class="col-lg-8">
@@ -235,71 +235,24 @@
             </div>
         </div>
         {% endif %}
-                                <div>
-                                    <strong>{{ suggestion.type|title }}</strong>
-                                    <span class="badge bg-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'secondary' }} ms-2">
-                                        {{ suggestion.priority|title }} Priority
-                                    </span>
-                                </div>
-                            </div>
-                            <p class="mb-0 mt-2">{{ suggestion.suggestion }}</p>
-                        </div>
-                        {% endfor %}
+                                
 
-                        {% if user_plan == 'premium' %}
-                        <div class="text-center mt-3">
-                            <small class="text-muted">
-                                <i class="fas fa-robot me-1"></i>
-                                AI-powered suggestions based on your content analysis
-                            </small>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% elif keywords and (user_plan == 'free' or user_plan == 'pro') %}
-        <div class="row justify-content-center mt-4">
-            <div class="col-lg-8">
-                <div class="card shadow-lg">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0">
-                            <i class="fas fa-info-circle me-2"></i>SEO Analysis
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info">
-                            <i class="fas fa-star me-2"></i>
-                            <strong>Upgrade to get AI-powered SEO suggestions!</strong> 
-                            <p class="mb-0 mt-2">Get personalized recommendations to improve your page's search ranking based on the extracted keywords and content analysis.</p>
-                            <a href="/plans" class="btn btn-primary btn-sm mt-2">View Plans</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- API Access Section for Premium Users -->
+        <!-- API Access Notice for Premium Users -->
         {% if user_plan == 'premium' and keywords %}
         <div class="row justify-content-center mt-4">
             <div class="col-lg-8">
                 <div class="card shadow-lg">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="mb-0">
-                            <i class="fas fa-code me-2"></i>API Access
+                            <i class="fas fa-code me-2"></i>API Access Available
                         </h5>
                     </div>
                     <div class="card-body">
                         <p><strong>Your Premium plan includes API access!</strong></p>
-                        <p>Example API call:</p>
-                        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST {{ request.url_root }}api/extract_keywords \
-  -H "Content-Type: application/json" \
-  -H "Cookie: session={{ request.cookies.get('session', 'your-session-cookie') }}" \
-  -d '{"url": "https://example.com"}'</code></pre>
-                        <button class="btn btn-outline-warning btn-sm" onclick="copyApiExample()">
-                            <i class="fas fa-copy me-1"></i>Copy API Example
-                        </button>
+                        <p>Manage your API keys and view usage examples in your <a href="{{ url_for('dashboard') }}" class="text-decoration-none">Dashboard</a>.</p>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-warning">
+                            <i class="fas fa-key me-1"></i>Manage API Keys
+                        </a>
                     </div>
                 </div>
             </div>

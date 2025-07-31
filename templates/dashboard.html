@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
@@ -103,7 +102,7 @@
                             </div>
                             {% endif %}
                         </div>
-                        
+
                         <div class="mb-3">
                             <small class="text-muted d-block">Keywords per audit: {{ 15 if user_plan == 'premium' else (10 if user_plan == 'pro' else 5) }}</small>
                             <small class="text-muted d-block">SEO suggestions: {{ 'No' if user_plan == 'free' else (5 if user_plan == 'pro' else 10) }}</small>
