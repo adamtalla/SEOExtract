@@ -560,35 +560,53 @@ def extract_keywords():
             seo_suggestions = ai_analyzer.generate_hybrid_suggestions(
                 url, seo_data, keywords_list, plan)
 
-            # Also generate detailed audit results for export
-            from seo_audit import SEOAuditor
-            auditor = SEOAuditor()
-            audit_results = auditor.analyze_page(
-                seo_data, keywords, seo_data.get('content_text', ''))
+            # Ensure seo_suggestions is a list and limit
+            if not isinstance(seo_suggestions, list):
+                seo_suggestions = []
+            seo_suggestions = seo_suggestions[:limits['seo_suggestions']]
 
-            # Ensure audit_results is a list and limit
-            if not isinstance(audit_results, list):
+            # Also generate detailed audit results for export
+            try:
+                from seo_audit import SEOAuditor
+                auditor = SEOAuditor()
+                audit_results = auditor.analyze_page(
+                    seo_data, keywords_list, seo_data.get('content_text', ''))
+
+                # Ensure audit_results is a list and limit
+                if not isinstance(audit_results, list):
+                    audit_results = []
+                audit_results = audit_results[:limits['seo_suggestions']]
+            except Exception as audit_error:
+                logging.error(f"Error generating audit results: {str(audit_error)}")
                 audit_results = []
-            audit_results = audit_results[:limits['seo_suggestions']]
+
+        else:
+            # Free plan - no suggestions
+            seo_suggestions = []
+            audit_results = []
 
     except ImportError as e:
         logging.error(f"Import error for AI analyzer: {str(e)}")
         # Fallback to existing system
         try:
-            from seo_audit import SEOAuditor
-            auditor = SEOAuditor()
-            audit_results = auditor.analyze_page(
-                seo_data, keywords, seo_data.get('content_text', ''))
+            if limits['seo_suggestions'] > 0:
+                from seo_audit import SEOAuditor
+                auditor = SEOAuditor()
+                keywords_list = keywords if isinstance(keywords, list) else []
+                audit_results = auditor.analyze_page(
+                    seo_data, keywords_list, seo_data.get('content_text', ''))
 
-            if isinstance(audit_results, list):
-                audit_results = audit_results[:limits['seo_suggestions']]
-                for result in audit_results:
-                    if isinstance(result, dict):
-                        seo_suggestions.append({
-                            'type': result.get('type', 'General'),
-                            'priority': result.get('priority', 'Medium'),
-                            'suggestion': f"{result.get('issue', 'Issue')}: {result.get('recommendation', 'No recommendation')}"
-                        })
+                if isinstance(audit_results, list):
+                    audit_results = audit_results[:limits['seo_suggestions']]
+                    for result in audit_results:
+                        if isinstance(result, dict):
+                            seo_suggestions.append({
+                                'type': result.get('type', 'General'),
+                                'priority': result.get('priority', 'Medium'),
+                                'suggestion': f"{result.get('issue', 'Issue')}: {result.get('recommendation', 'No recommendation')}"
+                            })
+                else:
+                    audit_results = []
         except Exception as fallback_error:
             logging.error(f"Fallback error: {str(fallback_error)}")
             audit_results = []

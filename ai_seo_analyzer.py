@@ -180,6 +180,10 @@ Analyze this website data and provide 5-8 specific SEO suggestions in JSON forma
         """Fallback to rule-based suggestions when AI is unavailable"""
         suggestions = []
 
+        # Ensure keywords is always a list
+        if not isinstance(keywords, list):
+            keywords = []
+
         # Title analysis
         title = seo_data.get('title', '')
         if not title:
@@ -201,6 +205,16 @@ Analyze this website data and provide 5-8 specific SEO suggestions in JSON forma
                 'suggestion': f'Title is too long ({len(title)} chars). Shorten to under 60 characters.'
             })
 
+        # Check if keywords are in title
+        if keywords and title:
+            primary_keyword = keywords[0].lower()
+            if primary_keyword not in title.lower():
+                suggestions.append({
+                    'type': 'Meta',
+                    'priority': 'High',
+                    'suggestion': f'Include your primary keyword "{keywords[0]}" in the title tag.'
+                })
+
         # Meta description analysis
         description = seo_data.get('description', '')
         if not description:
@@ -215,19 +229,59 @@ Analyze this website data and provide 5-8 specific SEO suggestions in JSON forma
                 'priority': 'Medium',
                 'suggestion': f'Meta description too long ({len(description)} chars). Shorten to under 160 characters.'
             })
+        elif keywords and description:
+            primary_keyword = keywords[0].lower()
+            if primary_keyword not in description.lower():
+                suggestions.append({
+                    'type': 'Meta',
+                    'priority': 'Medium',
+                    'suggestion': f'Include your primary keyword "{keywords[0]}" in the meta description.'
+                })
 
         # Headings analysis
         headings = seo_data.get('headings', {})
-        if not headings:
+        h1_tags = headings.get('h1', [])
+        
+        if not h1_tags:
             suggestions.append({
                 'type': 'Structure',
                 'priority': 'High',
-                'suggestion': 'Add proper heading structure (H1, H2, H3) to organize content hierarchy.'
+                'suggestion': 'Add an H1 heading that includes your primary keyword and describes the main topic.'
+            })
+        elif len(h1_tags) > 1:
+            suggestions.append({
+                'type': 'Structure',
+                'priority': 'High',
+                'suggestion': f'Multiple H1 tags found ({len(h1_tags)}). Use only one H1 per page.'
+            })
+        elif keywords and h1_tags:
+            h1_text = ' '.join(h1_tags).lower()
+            primary_keyword = keywords[0].lower()
+            if primary_keyword not in h1_text:
+                suggestions.append({
+                    'type': 'Structure',
+                    'priority': 'Medium',
+                    'suggestion': f'Include your primary keyword "{keywords[0]}" in the H1 heading.'
+                })
+
+        # Check for H2 structure
+        h2_tags = headings.get('h2', [])
+        if len(h2_tags) == 0:
+            suggestions.append({
+                'type': 'Structure',
+                'priority': 'Medium',
+                'suggestion': 'Add H2 subheadings to structure your content and improve readability.'
             })
 
         # Content analysis
         content = seo_data.get('content_text', '')
-        if content and len(content.split()) < 300:
+        if not content:
+            suggestions.append({
+                'type': 'Content',
+                'priority': 'High',
+                'suggestion': 'Add substantial content (300+ words) relevant to your target keywords.'
+            })
+        elif len(content.split()) < 300:
             suggestions.append({
                 'type': 'Content',
                 'priority': 'Medium',
@@ -236,20 +290,44 @@ Analyze this website data and provide 5-8 specific SEO suggestions in JSON forma
 
         # Keywords analysis
         if keywords and content:
-            keyword_in_content = any(keyword.lower() in content.lower() for keyword in keywords[:3])
-            if not keyword_in_content:
+            content_lower = content.lower()
+            missing_keywords = []
+            for keyword in keywords[:3]:
+                if keyword.lower() not in content_lower:
+                    missing_keywords.append(keyword)
+            
+            if missing_keywords:
                 suggestions.append({
                     'type': 'Keywords',
                     'priority': 'High',
-                    'suggestion': f'Include your top keywords ({", ".join(keywords[:3])}) naturally in your content.'
+                    'suggestion': f'Include these keywords naturally in your content: {", ".join(missing_keywords)}'
                 })
 
         # Image analysis
-        if not seo_data.get('images_with_alt', []):
+        images = seo_data.get('images', [])
+        if images:
+            missing_alt = sum(1 for img in images if not img.get('alt', '').strip())
+            if missing_alt > 0:
+                suggestions.append({
+                    'type': 'Technical',
+                    'priority': 'Medium',
+                    'suggestion': f'{missing_alt} images missing alt text. Add descriptive alt text for accessibility.'
+                })
+
+        # Technical SEO
+        page_speed = seo_data.get('page_speed_score', 0)
+        if page_speed > 0 and page_speed < 70:
             suggestions.append({
-                'type': 'Structure',
-                'priority': 'Medium',
-                'suggestion': 'Add descriptive alt text to images for better accessibility and SEO.'
+                'type': 'Technical',
+                'priority': 'High',
+                'suggestion': f'Page speed is slow ({page_speed}/100). Optimize images and enable compression.'
+            })
+
+        if not seo_data.get('mobile_friendly', True):
+            suggestions.append({
+                'type': 'Technical',
+                'priority': 'High',
+                'suggestion': 'Page is not mobile-friendly. Implement responsive design.'
             })
 
         return suggestions[:8]  # Limit to 8 suggestions

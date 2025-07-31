@@ -341,13 +341,23 @@ class SEOAuditor:
         """Analyze keyword usage and density"""
         issues = []
         
+        # Ensure keywords is always a list
+        if not isinstance(keywords, list):
+            keywords = []
+        
         if not keywords or not content:
             return issues
         
         content_lower = content.lower()
         content_words = len(content.split())
         
+        if content_words == 0:
+            return issues
+        
         for i, keyword in enumerate(keywords[:5]):  # Check top 5 keywords
+            if not keyword or not isinstance(keyword, str):
+                continue
+                
             keyword_lower = keyword.lower()
             
             # Skip nonsensical keywords

@@ -158,7 +158,7 @@
         {% endif %}
 
         <!-- SEO Suggestions Section -->
-        {% if seo_suggestions and seo_suggestions|length > 0 %}
+        {% if user_plan != 'free' and seo_suggestions and seo_suggestions|length > 0 %}
         <div class="row justify-content-center mt-4">
             <div class="col-lg-8">
                 <div class="card shadow-lg">
@@ -171,6 +171,70 @@
                         {% for suggestion in seo_suggestions %}
                         <div class="alert alert-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'info' }} mb-3">
                             <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="alert-heading mb-1">
+                                        <span class="badge bg-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'info' }} me-2">
+                                            {{ suggestion.priority|title }}
+                                        </span>
+                                        {{ suggestion.type|title }}
+                                    </h6>
+                                    <p class="mb-0">{{ suggestion.suggestion }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        {% if seo_suggestions|length >= limits.seo_suggestions %}
+                        <div class="text-center mt-3">
+                            <small class="text-muted">
+                                Showing top {{ limits.seo_suggestions }} suggestions. 
+                                {% if user_plan == 'pro' %}
+                                <a href="{{ url_for('plans') }}" class="text-decoration-none">Upgrade to Premium</a> for more detailed analysis.
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% elif user_plan == 'free' and (keywords or audit_results) %}
+        <!-- Upgrade prompt for free users -->
+        <div class="row justify-content-center mt-4">
+            <div class="col-lg-8">
+                <div class="card shadow-lg border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="fas fa-star me-2"></i>SEO Analysis
+                        </h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <h6 class="text-warning mb-3">
+                            <i class="fas fa-lock me-2"></i>Upgrade to get AI-powered SEO suggestions!
+                        </h6>
+                        <p class="text-muted mb-4">
+                            Get personalized recommendations to improve your page's search ranking based on the extracted keywords and content analysis.
+                        </p>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <a href="{{ url_for('upgrade_plan', plan='pro') }}" class="btn btn-outline-primary w-100">
+                                    <i class="fas fa-arrow-up me-2"></i>Upgrade to Pro - $15/month
+                                </a>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <a href="{{ url_for('upgrade_plan', plan='premium') }}" class="btn btn-primary w-100">
+                                    <i class="fas fa-crown me-2"></i>Go Premium - $30/month
+                                </a>
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            Pro: 5 suggestions per audit | Premium: 10 suggestions + AI-powered analysis
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
                                 <div>
                                     <strong>{{ suggestion.type|title }}</strong>
                                     <span class="badge bg-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'secondary' }} ms-2">
