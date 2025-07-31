@@ -263,6 +263,13 @@ def dashboard():
 @login_required
 def extract_keywords():
     """Extract keywords from URL - handles both form and JSON requests"""
+    # Initialize all variables at the start to avoid undefined errors
+    keywords = []
+    seo_suggestions = []
+    audit_results = []
+    seo_data = {}
+    url = ''
+    
     try:
         user = get_user_from_session()
         
@@ -277,9 +284,9 @@ def extract_keywords():
         # Handle both form data and JSON data
         if request.is_json:
             data = request.get_json()
-            url = data.get('url')
+            url = data.get('url', '')
         else:
-            url = request.form.get('url')
+            url = request.form.get('url', '')
         
         if not url:
             return jsonify({'error': 'URL is required'}), 400
@@ -288,15 +295,9 @@ def extract_keywords():
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        # Get plan limits first
+        # Get plan limits
         plan = user.get('plan', 'free')
         limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-        
-        # Initialize variables first
-        keywords = []
-        seo_suggestions = []
-        audit_results = []
-        seo_data = {}
         
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
@@ -365,10 +366,15 @@ def extract_keywords():
         if request.is_json:
             return jsonify({'error': error_message}), 500
         
+        # Get user safely for error handling
+        user = get_user_from_session()
+        if not user:
+            user = {'id': 'guest', 'plan': 'free'}
+        
         flash(f"Error analyzing website: {error_message}", 'danger')
         return render_template('tool.html', 
                              error=error_message, 
-                             url=url if 'url' in locals() else '',
+                             url=url,
                              user=user,
                              usage=get_user_usage(user['id']),
                              limits=PLAN_LIMITS.get(user.get('plan', 'free'), PLAN_LIMITS['free']),
