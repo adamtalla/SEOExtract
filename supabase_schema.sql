@@ -50,6 +50,22 @@ CREATE TABLE public.plan_changes (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Search history table
+CREATE TABLE public.search_history (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    keywords JSONB, -- Array of keywords found
+    seo_suggestions JSONB, -- Array of SEO suggestions
+    seo_data JSONB, -- Full SEO metadata
+    keyword_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for faster queries
+CREATE INDEX idx_search_history_user_id ON public.search_history(user_id);
+CREATE INDEX idx_search_history_created_at ON public.search_history(created_at DESC);
+
 -- Usage tracking table (enhanced)
 CREATE TABLE public.user_usage (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

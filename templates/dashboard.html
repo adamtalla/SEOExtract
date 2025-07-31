@@ -26,6 +26,9 @@
                     <li class="nav-item">
                         <a class="nav-link active" href="/dashboard">Dashboard</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history">History</a>
+                    </li>
                 </ul>
                 <div class="d-flex">
                     <span class="navbar-text me-3">Welcome, {{ user.email if user else 'Guest' }}</span>
@@ -65,14 +68,14 @@
                             <li><i class="fas fa-times text-danger me-2"></i>No SEO suggestions</li>
                         </ul>
                         {% elif user_plan == 'pro' %}
-                        <h4 class="text-primary">Pro Plan - $15/month</h4>
+                        <h4 class="text-primary">Pro Plan - $10/month</h4>
                         <ul class="list-unstyled">
                             <li><i class="fas fa-check text-success me-2"></i>10 audits per month</li>
                             <li><i class="fas fa-check text-success me-2"></i>10 keywords per audit</li>
                             <li><i class="fas fa-check text-success me-2"></i>5 SEO suggestions per audit</li>
                         </ul>
                         {% elif user_plan == 'premium' %}
-                        <h4 class="text-warning">Premium Plan - $30/month</h4>
+                        <h4 class="text-warning">Premium Plan - $19/month</h4>
                         <ul class="list-unstyled">
                             <li><i class="fas fa-check text-success me-2"></i>Unlimited audits</li>
                             <li><i class="fas fa-check text-success me-2"></i>15 keywords per audit</li>
@@ -235,7 +238,7 @@
                         <h5 class="mb-0">Recent Analysis</h5>
                     </div>
                     <div class="card-body">
-                        {% if recent_analyses %}
+                        {% if recent_analyses and recent_analyses|length > 0 %}
                         <div class="table-responsive">
                             <table class="table table-dark table-striped">
                                 <thead>
@@ -247,18 +250,25 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for analysis in recent_analyses %}
+                                    {% for analysis in recent_analyses[:5] %}
                                     <tr>
-                                        <td><a href="{{ analysis.url }}" target="_blank" class="text-decoration-none">{{ analysis.url[:50] }}...</a></td>
-                                        <td>{{ analysis.keyword_count }}</td>
-                                        <td>{{ analysis.created_at.strftime('%b %d, %Y') }}</td>
                                         <td>
-                                            <button class="btn btn-sm btn-outline-primary">View</button>
+                                            <a href="{{ analysis.url }}" target="_blank" class="text-decoration-none">
+                                                {{ analysis.url[:50] }}{% if analysis.url|length > 50 %}...{% endif %}
+                                            </a>
+                                        </td>
+                                        <td>{{ analysis.keyword_count or 0 }}</td>
+                                        <td>{{ analysis.created_at[:10] if analysis.created_at else 'Unknown' }}</td>
+                                        <td>
+                                            <a href="/history/{{ analysis.id if analysis.id else loop.index0 }}" class="btn btn-sm btn-outline-primary">View</a>
                                         </td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="text-center mt-3">
+                            <a href="/history" class="btn btn-outline-secondary">View All History</a>
                         </div>
                         {% else %}
                         <div class="text-center py-4">

@@ -174,6 +174,85 @@ def check_usage_limits(user, action='audit'):
     return True, ""
 
 
+def store_search_history(user_id, url, keywords, seo_suggestions, seo_data):
+    """Store search history in database"""
+    if not user_id or user_id == 'guest':
+        return
+        
+    # Try to store in Supabase
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            history_data = {
+                'user_id': user_id,
+                'url': url,
+                'keywords': keywords,
+                'seo_suggestions': seo_suggestions,
+                'seo_data': seo_data,
+                'keyword_count': len(keywords) if isinstance(keywords, list) else 0,
+                'created_at': datetime.now().isoformat()
+            }
+            
+            result = supabase_request('POST', 'search_history', history_data)
+            if result:
+                logging.info(f"Stored search history for user {user_id}, URL: {url}")
+            else:
+                logging.error(f"Failed to store search history for user {user_id}")
+                
+        except Exception as e:
+            logging.error(f"Error storing search history: {str(e)}")
+            # Fallback to session storage
+            if 'search_history' not in session:
+                session['search_history'] = []
+            
+            session['search_history'].append({
+                'url': url,
+                'keywords': keywords,
+                'seo_suggestions': seo_suggestions,
+                'seo_data': seo_data,
+                'keyword_count': len(keywords) if isinstance(keywords, list) else 0,
+                'created_at': datetime.now().isoformat()
+            })
+            
+            # Keep only last 50 searches in session
+            if len(session['search_history']) > 50:
+                session['search_history'] = session['search_history'][-50:]
+    else:
+        # Session-based storage fallback
+        if 'search_history' not in session:
+            session['search_history'] = []
+        
+        session['search_history'].append({
+            'url': url,
+            'keywords': keywords,
+            'seo_suggestions': seo_suggestions,
+            'seo_data': seo_data,
+            'keyword_count': len(keywords) if isinstance(keywords, list) else 0,
+            'created_at': datetime.now().isoformat()
+        })
+        
+        # Keep only last 50 searches in session
+        if len(session['search_history']) > 50:
+            session['search_history'] = session['search_history'][-50:]
+
+
+def get_search_history(user_id):
+    """Get user's search history"""
+    if not user_id or user_id == 'guest':
+        return []
+    
+    # Try to get from Supabase
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            history = supabase_request('GET', f'search_history?user_id=eq.{user_id}&order=created_at.desc&limit=50')
+            if history:
+                return history
+        except Exception as e:
+            logging.error(f"Error getting search history from Supabase: {str(e)}")
+    
+    # Fallback to session
+    return session.get('search_history', [])
+
+
 def increment_usage(user_id, action='audit'):
     """Increment user's usage counter in database"""
     if not user_id or user_id == 'guest':
@@ -533,8 +612,8 @@ def dashboard():
             api_key = generate_api_key()
             session[f'api_key_{user["id"]}'] = api_key
 
-    # Mock recent analyses data
-    recent_analyses = []
+    # Get recent analyses from history
+    recent_analyses = get_search_history(user['id'])
 
     return render_template('dashboard.html',
                            user=user,
@@ -732,13 +811,16 @@ def extract_keywords():
         audit_results = []
         seo_suggestions = []
 
-    # STEP 10: Store results in session (SAFELY)
+    # STEP 10: Store results in session and history (SAFELY)
     try:
         session['last_keywords'] = keywords
         session['last_url'] = url
         session['last_suggestions'] = seo_suggestions
         session['last_audit_results'] = audit_results
         session['last_seo_data'] = seo_data
+
+        # Store in search history
+        store_search_history(user['id'], url, keywords, seo_suggestions, seo_data)
 
         # Increment usage
         increment_usage(user['id'], 'audit')
@@ -923,8 +1005,78 @@ def export_results(format):
         return redirect(url_for('tool'))
 
     if format.lower() == 'pdf':
-        # Mock PDF export - in production, use reportlab or similar
-        flash('PDF export feature coming soon!', 'info')
+        # Generate PDF export
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.lib import colors
+            from flask import make_response
+            import io
+            
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+            
+            # Container for the 'Flowable' objects
+            elements = []
+            
+            # Define styles
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=18, spaceAfter=30)
+            heading_style = ParagraphStyle('CustomHeading', parent=styles['Heading2'], fontSize=14, spaceAfter=12)
+            
+            # Add title
+            elements.append(Paragraph(f"SEO Analysis Report", title_style))
+            elements.append(Paragraph(f"URL: {last_url}", styles['Normal']))
+            elements.append(Spacer(1, 12))
+            
+            # Add keywords section
+            if last_keywords:
+                elements.append(Paragraph("Keywords Found:", heading_style))
+                keyword_data = []
+                for i, keyword in enumerate(last_keywords, 1):
+                    keyword_data.append([str(i), keyword])
+                
+                keyword_table = Table(keyword_data, colWidths=[0.5*inch, 4*inch])
+                keyword_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                    ('TEXTCOLOR',(0,0),(-1,0),colors.whitesmoke),
+                    ('ALIGN',(0,0),(-1,-1),'LEFT'),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,0), 12),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                    ('BACKGROUND',(0,1),(-1,-1),colors.beige),
+                    ('GRID',(0,0),(-1,-1),1,colors.black)
+                ]))
+                elements.append(keyword_table)
+                elements.append(Spacer(1, 12))
+            
+            # Add SEO suggestions section
+            if last_suggestions:
+                elements.append(Paragraph("SEO Suggestions:", heading_style))
+                for suggestion in last_suggestions:
+                    elements.append(Paragraph(f"<b>Priority:</b> {suggestion.get('priority', 'Medium')}", styles['Normal']))
+                    elements.append(Paragraph(f"<b>Type:</b> {suggestion.get('type', 'General')}", styles['Normal']))
+                    elements.append(Paragraph(f"<b>Suggestion:</b> {suggestion.get('suggestion', 'No suggestion')}", styles['Normal']))
+                    elements.append(Spacer(1, 12))
+            
+            # Build PDF
+            doc.build(elements)
+            pdf_data = buffer.getvalue()
+            buffer.close()
+            
+            response = make_response(pdf_data)
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'attachment; filename=seo_report_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.pdf'
+            return response
+            
+        except ImportError:
+            # Fallback if reportlab is not available
+            flash('PDF generation requires additional packages. Please contact support.', 'warning')
+        except Exception as e:
+            logging.error(f"Error generating PDF: {str(e)}")
+            flash('Error generating PDF report', 'danger')
     elif format.lower() == 'csv':
         from flask import make_response
         import csv
@@ -1098,6 +1250,63 @@ def regenerate_api_key():
     except Exception as e:
         logging.error(f"Error regenerating API key: {str(e)}")
         return jsonify({'error': f'Failed to regenerate API key: {str(e)}'}), 500
+
+
+@app.route('/history')
+@login_required
+def view_history():
+    """View user's search history"""
+    user = get_user_from_session()
+    history = get_search_history(user['id'])
+    
+    return render_template('history.html', user=user, history=history)
+
+
+@app.route('/history/<int:history_id>')
+@login_required
+def view_history_detail(history_id):
+    """View detailed report from history"""
+    user = get_user_from_session()
+    
+    # Get specific history item
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            history_item = supabase_request('GET', f'search_history?id=eq.{history_id}&user_id=eq.{user["id"]}')
+            if history_item and len(history_item) > 0:
+                item = history_item[0]
+                
+                return render_template('tool.html',
+                                       keywords=item.get('keywords', []),
+                                       url=item.get('url', ''),
+                                       seo_suggestions=item.get('seo_suggestions', []),
+                                       audit_results=[],
+                                       seo_data=item.get('seo_data', {}),
+                                       user=user,
+                                       usage=get_user_usage(user['id']),
+                                       limits=PLAN_LIMITS.get(user.get('plan', 'free'), PLAN_LIMITS['free']),
+                                       user_plan=user.get('plan', 'free'),
+                                       from_history=True)
+        except Exception as e:
+            logging.error(f"Error getting history detail: {str(e)}")
+    
+    # Fallback to session history
+    history = session.get('search_history', [])
+    if history_id < len(history):
+        item = history[history_id]
+        return render_template('tool.html',
+                               keywords=item.get('keywords', []),
+                               url=item.get('url', ''),
+                               seo_suggestions=item.get('seo_suggestions', []),
+                               audit_results=[],
+                               seo_data=item.get('seo_data', {}),
+                               user=user,
+                               usage=get_user_usage(user['id']),
+                               limits=PLAN_LIMITS.get(user.get('plan', 'free'), PLAN_LIMITS['free']),
+                               user_plan=user.get('plan', 'free'),
+                               from_history=True)
+    
+    flash('History item not found', 'error')
+    return redirect(url_for('view_history'))
 
 
 @app.route('/admin/change_plan/<user_id>/<new_plan>')
