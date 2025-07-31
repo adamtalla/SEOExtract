@@ -142,20 +142,40 @@ function toggleApiKey() {
     const input = document.getElementById('apiKeyInput');
     const icon = document.getElementById('apiKeyIcon');
 
-    if (input.type === 'password') {
-        input.type = 'text';
-        icon.className = 'fas fa-eye-slash';
-    } else {
-        input.type = 'password';
-        icon.className = 'fas fa-eye';
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'fas fa-eye';
+        }
     }
 }
 
 function copyApiKey() {
     const input = document.getElementById('apiKeyInput');
-    navigator.clipboard.writeText(input.value).then(() => {
-        showToast('API key copied!');
-    });
+    if (input && input.value) {
+        navigator.clipboard.writeText(input.value).then(() => {
+            showToast('API key copied!', 'success');
+        }).catch(err => {
+            console.error('Failed to copy API key: ', err);
+            // Fallback copy method
+            const textArea = document.createElement('textarea');
+            textArea.value = input.value;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast('API key copied!', 'success');
+            } catch (fallbackErr) {
+                showToast('Failed to copy API key', 'error');
+            }
+            document.body.removeChild(textArea);
+        });
+    } else {
+        showToast('No API key to copy', 'warning');
+    }
 }
 
 function regenerateApiKey() {
