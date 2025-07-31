@@ -158,23 +158,23 @@
         {% endif %}
 
         <!-- SEO Suggestions Section -->
-        {% if seo_suggestions %}
+        {% if seo_suggestions and seo_suggestions|length > 0 %}
         <div class="row justify-content-center mt-4">
             <div class="col-lg-8">
                 <div class="card shadow-lg">
                     <div class="card-header bg-success text-white">
                         <h5 class="mb-0">
-                            <i class="fas fa-lightbulb me-2"></i>SEO Suggestions
+                            <i class="fas fa-lightbulb me-2"></i>AI-Powered SEO Suggestions
                         </h5>
                     </div>
                     <div class="card-body">
                         {% for suggestion in seo_suggestions %}
-                        <div class="alert alert-{{ 'danger' if suggestion.priority == 'High' else 'warning' if suggestion.priority == 'Medium' else 'info' }} mb-3">
+                        <div class="alert alert-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'info' }} mb-3">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
-                                    <strong>{{ suggestion.type }}</strong>
-                                    <span class="badge bg-{{ 'danger' if suggestion.priority == 'High' else 'warning' if suggestion.priority == 'Medium' else 'secondary' }} ms-2">
-                                        {{ suggestion.priority }} Priority
+                                    <strong>{{ suggestion.type|title }}</strong>
+                                    <span class="badge bg-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'secondary' }} ms-2">
+                                        {{ suggestion.priority|title }} Priority
                                     </span>
                                 </div>
                             </div>
@@ -194,7 +194,7 @@
                 </div>
             </div>
         </div>
-        {% elif user_plan != 'premium' and keywords %}
+        {% elif keywords and (user_plan == 'free' or user_plan == 'pro') %}
         <div class="row justify-content-center mt-4">
             <div class="col-lg-8">
                 <div class="card shadow-lg">
