@@ -1,0 +1,67 @@
+# SaaS Redesign & Feature Implementation Instructions
+
+## 1. Landing Page & Navigation
+- Build a landing page with navigation links: Home, Plans, FAQ, About, Create Account / Login.
+- Home page should introduce the tool and have a strong call-to-action: “Try the tool for free — create an account now.”
+- Plans page lists pricing and features for each plan.
+- FAQ page answers common questions.
+- About page describes the company/product.
+- “Create Account” and “Login” buttons should be clearly visible.
+
+## 2. User Authentication (Supabase)
+- Integrate Supabase Auth for email/password signup and login.
+- After login, redirect users to a Dashboard page.
+- Store user info, subscription plan, and usage stats (audits done, keywords generated, links checked) in Supabase database.
+
+## 3. Subscription Plans & Usage Limits
+Implement these plans:
+
+| Plan     | Audits/month | SEO Suggestions per audit | Keywords per link | Links per month | Price      |
+|----------|--------------|--------------------------|-------------------|-----------------|------------|
+| Free     | 1            | N/A                      | 5                 | 3               | $0         |
+| Pro      | 3            | 5                        | 10                | Unlimited       | $15/month  |
+| Premium  | 5            | 10                       | 15                | Unlimited       | $30/month  |
+
+- Enforce these limits on the backend.
+- For Free users, limit usage accordingly and show usage stats on Dashboard.
+- For Pro and Premium, allow unlimited links but limit audits, suggestions, and keywords per link.
+
+## 4. Stripe Integration
+- Connect Stripe for subscription management.
+- Allow users to upgrade, downgrade, or cancel plans from the Dashboard.
+- Use Stripe webhooks to update user subscription status and plan in Supabase.
+- Show billing and payment history if possible.
+
+## 5. Tool Access & Usage Enforcement
+- Require login to access the keyword & audit tool.
+- Before processing a request, check user limits and usage.
+- If limits are reached, block further requests and display an upgrade prompt.
+- Show remaining quota (audits left, keywords left, links left) in the Dashboard and tool page.
+
+## 6. UI/UX & Design
+- Design the app as a professional SaaS with:
+  - Clean, responsive layout.
+  - Consistent colors and fonts.
+  - Clear navigation and buttons.
+  - Dashboard with usage statistics and upgrade options.
+  
+## 7. Bonus Features (Optional)
+- Email verification on signup.
+- Password reset functionality.
+- User profile management.
+- Invoice and billing history pages.
+
+---
+
+# Summary
+- Create multi-page frontend: Home, Plans, FAQ, About, Login/Register, Dashboard.
+- Use Supabase for auth and storing user data & usage.
+- Use Stripe for billing and subscription management.
+- Enforce usage limits on backend before calling AI.
+- Maintain and improve your AI keyword & audit tool backend.
+- Build user-friendly Dashboard showing plan and usage info.
+- Provide upgrade prompts when users hit plan limits.
+
+---
+
+Please start with the landing page and auth integration first, then implement subscription plans and limits. Let me know if you need example code snippets or design mockups.
