@@ -263,13 +263,6 @@ def dashboard():
 @login_required
 def extract_keywords():
     """Extract keywords from URL - handles both form and JSON requests"""
-    # Initialize all variables at the start to avoid undefined errors
-    keywords = []
-    seo_suggestions = []
-    audit_results = []
-    seo_data = {}
-    url = ''
-    
     try:
         user = get_user_from_session()
         
@@ -284,9 +277,9 @@ def extract_keywords():
         # Handle both form data and JSON data
         if request.is_json:
             data = request.get_json()
-            url = data.get('url', '')
+            url = data.get('url')
         else:
-            url = request.form.get('url', '')
+            url = request.form.get('url')
         
         if not url:
             return jsonify({'error': 'URL is required'}), 400
@@ -295,43 +288,30 @@ def extract_keywords():
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        # Get plan limits
-        plan = user.get('plan', 'free')
-        limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-        
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
-        from seo_audit import SEOAuditor
+        from seo_analyzer import generate_seo_suggestions
         
         all_keywords = extract_keywords_from_url(url)
         seo_data = get_seo_metadata(url)
         
-        # Apply plan limits to keywords
+        # Apply plan limits
+        plan = user.get('plan', 'free')
+        limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
         keywords = all_keywords[:limits['keywords_per_audit']]
         
-        # Generate comprehensive SEO audit
+        # Generate SEO suggestions if plan allows
+        seo_suggestions = []
         if limits['seo_suggestions'] > 0:
-            # Create comprehensive SEO audit
-            auditor = SEOAuditor()
-            audit_results = auditor.analyze_page(seo_data, keywords, seo_data.get('content_text', ''))
-            
-            # Limit results based on plan
-            audit_results = audit_results[:limits['seo_suggestions']]
-            
-            # Convert audit results to suggestions format for backward compatibility
-            for result in audit_results:
-                seo_suggestions.append({
-                    'type': result['type'],
-                    'priority': result['priority'],
-                    'suggestion': f"{result['issue']}: {result['recommendation']}"
-                })
+            # Use extracted keywords as target keywords for analysis
+            target_keywords = keywords[:3]  # Use top 3 keywords as targets
+            all_suggestions = generate_seo_suggestions(seo_data, target_keywords)
+            seo_suggestions = all_suggestions[:limits['seo_suggestions']]
         
         # Store results in session for export
         session['last_keywords'] = keywords
         session['last_url'] = url
         session['last_suggestions'] = seo_suggestions
-        session['last_audit_results'] = audit_results
-        session['last_seo_data'] = seo_data
         
         # Increment usage counter
         increment_usage(user['id'], 'audit')
@@ -342,8 +322,6 @@ def extract_keywords():
                 'keywords': keywords, 
                 'url': url,
                 'seo_suggestions': seo_suggestions,
-                'audit_results': audit_results,
-                'seo_data': seo_data,
                 'plan': plan
             })
         
@@ -352,8 +330,6 @@ def extract_keywords():
                              keywords=keywords, 
                              url=url,
                              seo_suggestions=seo_suggestions,
-                             audit_results=audit_results,
-                             seo_data=seo_data,
                              user=user,
                              usage=get_user_usage(user['id']),
                              limits=limits,
@@ -366,15 +342,10 @@ def extract_keywords():
         if request.is_json:
             return jsonify({'error': error_message}), 500
         
-        # Get user safely for error handling
-        user = get_user_from_session()
-        if not user:
-            user = {'id': 'guest', 'plan': 'free'}
-        
         flash(f"Error analyzing website: {error_message}", 'danger')
         return render_template('tool.html', 
                              error=error_message, 
-                             url=url,
+                             url=url if 'url' in locals() else '',
                              user=user,
                              usage=get_user_usage(user['id']),
                              limits=PLAN_LIMITS.get(user.get('plan', 'free'), PLAN_LIMITS['free']),
@@ -410,7 +381,7 @@ def api_extract_keywords():
         
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
-        from seo_audit import SEOAuditor
+        from seo_analyzer import generate_seo_suggestions
         
         all_keywords = extract_keywords_from_url(url)
         seo_data = get_seo_metadata(url)
@@ -419,16 +390,9 @@ def api_extract_keywords():
         # Generate SEO suggestions
         seo_suggestions = []
         if limits['seo_suggestions'] > 0:
-            auditor = SEOAuditor()
-            audit_results = auditor.analyze_page(seo_data, keywords, seo_data.get('content_text', ''))
-            
-            # Convert to suggestions format and limit
-            for result in audit_results[:limits['seo_suggestions']]:
-                seo_suggestions.append({
-                    'type': result['type'],
-                    'priority': result['priority'],
-                    'suggestion': f"{result['issue']}: {result['recommendation']}"
-                })
+            target_keywords = keywords[:3]  # Use top 3 keywords as targets
+            all_suggestions = generate_seo_suggestions(seo_data, target_keywords)
+            seo_suggestions = all_suggestions[:limits['seo_suggestions']]
         
         # Increment usage
         increment_usage(user['id'], 'audit')
@@ -461,10 +425,8 @@ def export_results(format):
     last_keywords = session.get('last_keywords', [])
     last_url = session.get('last_url', '')
     last_suggestions = session.get('last_suggestions', [])
-    last_audit_results = session.get('last_audit_results', [])
-    last_seo_data = session.get('last_seo_data', {})
     
-    if not last_keywords and not last_audit_results:
+    if not last_keywords:
         flash('No analysis results to export', 'warning')
         return redirect(url_for('tool'))
     
@@ -478,48 +440,13 @@ def export_results(format):
         
         output = io.StringIO()
         writer = csv.writer(output)
-        
-        # Export comprehensive data
-        writer.writerow(['Section', 'Type', 'Priority', 'Issue', 'Description', 'Impact', 'Recommendation'])
-        
-        # Add keywords
+        writer.writerow(['Keyword', 'URL', 'Position'])
         for i, keyword in enumerate(last_keywords, 1):
-            writer.writerow(['Keywords', 'Keyword', f'Position {i}', keyword, '', '', ''])
-        
-        # Add audit results
-        for result in last_audit_results:
-            writer.writerow([
-                'SEO Audit',
-                result.get('type', ''),
-                result.get('priority', ''),
-                result.get('issue', ''),
-                result.get('description', ''),
-                result.get('impact', ''),
-                result.get('recommendation', '')
-            ])
-        
-        # Add SEO metadata
-        if last_seo_data:
-            writer.writerow(['Metadata', 'Title', '', last_seo_data.get('title', ''), '', '', ''])
-            writer.writerow(['Metadata', 'Description', '', last_seo_data.get('description', ''), '', '', ''])
-            writer.writerow(['Metadata', 'Page Speed', '', str(last_seo_data.get('page_speed_score', 0)), '', '', ''])
-            writer.writerow(['Metadata', 'Mobile Friendly', '', str(last_seo_data.get('mobile_friendly', False)), '', '', ''])
+            writer.writerow([keyword, last_url, i])
         
         response = make_response(output.getvalue())
         response.headers['Content-Type'] = 'text/csv'
-        response.headers['Content-Disposition'] = f'attachment; filename=seo_audit_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.csv'
-        return response
-    elif format.lower() == 'report':
-        # Export detailed text report
-        from seo_audit import SEOAuditor
-        from flask import make_response
-        
-        auditor = SEOAuditor()
-        report = auditor.format_audit_report(last_audit_results)
-        
-        response = make_response(report)
-        response.headers['Content-Type'] = 'text/plain'
-        response.headers['Content-Disposition'] = f'attachment; filename=seo_audit_report_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.txt'
+        response.headers['Content-Disposition'] = f'attachment; filename=seo_keywords_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.csv'
         return response
     
     return redirect(url_for('tool'))
