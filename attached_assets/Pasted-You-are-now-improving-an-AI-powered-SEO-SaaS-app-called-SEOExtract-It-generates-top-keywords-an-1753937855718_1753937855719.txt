@@ -1,0 +1,102 @@
+You are now improving an AI-powered SEO SaaS app called **SEOExtract**. It generates top keywords and SEO suggestions when a user enters a website URL. The tool is already functional but needs to be turned into a proper SaaS product with working pricing tiers, a landing page, and account management.
+
+🔧 Here’s what I need you to do:
+
+---
+
+🚨 1. **Fix Bugs**
+- The **Free trial logic is broken** — currently users can’t run even 1 audit. Fix this so the plan limits actually work.
+- Ensure keyword generation and suggestion features work per the limits.
+- Make sure audits run smoothly without throwing errors on repeat usage.
+
+---
+
+🌐 2. **Rename the app**
+- Change all branding and page titles to **SEOExtract**
+
+---
+
+🎨 3. **Add a SaaS landing page**
+- Add these public-facing pages:
+  - `Home`
+  - `Plans`
+  - `About`
+  - `FAQ`
+  - `Login` / `Signup`
+- Use a modern design (TailwindCSS or similar is fine)
+- Navbar should be sticky and link to all pages
+- Add a CTA button: “Try SEOExtract Free”
+
+---
+
+🔐 4. **User Authentication with Supabase**
+- Add full auth system using **Supabase**
+- Allow signup, login, and logout
+- Store audit and usage history per user
+- Plan data and usage limits should be saved in Supabase and enforced
+
+---
+
+💳 5. **Stripe Integration for Pricing Plans**
+Set up 3 plans with the following features, and enforce limits per plan:
+
+---
+
+### 🟢 Free — $0/month
+- 3 audits per month
+- 5 keywords per audit
+- No SEO suggestions
+- No export or API
+- Basic support
+
+---
+
+### 🔵 Pro — $15/month
+- Unlimited websites
+- 10 audits per month
+- 10 keywords per audit
+- 5 SEO suggestions per audit
+- Export to PDF
+- Priority support
+
+---
+
+### 🟣 Premium — $30/month
+- Unlimited websites
+- Unlimited audits
+- 15 keywords per audit
+- 10 SEO suggestions per audit
+- Export to PDF/CSV
+- API access
+- Premium support
+
+---
+
+📦 6. **Enforce Plan Features in the App**
+- Limit audits per month per plan correctly
+- Limit keywords shown per audit
+- Lock/export features & API access to Pro/Premium only
+- Block SEO suggestions for Free plan
+- Add banners or UI hints if users hit their limit
+- Show current plan and usage on dashboard
+
+---
+
+✅ 7. **Test All Features**
+- Make sure I can:
+  - Sign up as a Free user and get 3 working audits
+  - Upgrade to Pro or Premium via Stripe
+  - Actually see more keywords and suggestions per higher plan
+  - Use export and API only when subscribed
+
+---
+
+📝 Bonus (Optional):
+- Add simple analytics: how many audits user did this month
+- Add logout button in header
+- Make it mobile responsive
+
+---
+
+Let me try everything after it’s implemented to confirm it works.
+
