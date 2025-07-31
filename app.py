@@ -447,7 +447,7 @@ def register():
             else:
                 session['plan'] = 'free'
                 initialize_new_user(user_id, email, 'free')
-                flash('Account created successfully! You have 3 free audits to get started.',
+                flash('Account created successfully! You have 5 free audits to get started.',
                       'success')
 
             return redirect(url_for('dashboard'))
@@ -634,6 +634,8 @@ def extract_keywords():
             try:
                 from seo_audit import SEOAuditor
                 auditor = SEOAuditor()
+                # Make sure keywords_list is defined here
+                keywords_list = keywords if isinstance(keywords, list) else []
                 audit_results = auditor.analyze_page(
                     seo_data, keywords_list, seo_data.get('content_text', ''))
 

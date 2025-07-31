@@ -158,82 +158,107 @@
         {% endif %}
 
         <!-- SEO Suggestions Section -->
-        {% if seo_suggestions and seo_suggestions|length > 0 and user_plan != 'free' %}
-        <div class="row justify-content-center mt-4">
-            <div class="col-lg-8">
-                <div class="card shadow-lg">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">
-                            <i class="fas fa-lightbulb me-2"></i>AI-Powered SEO Suggestions
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        {% for suggestion in seo_suggestions %}
-                        <div class="alert alert-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'info' }} mb-3">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <h6 class="alert-heading mb-1">
-                                        <span class="badge bg-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'info' }} me-2">
-                                            {{ suggestion.priority|title }}
-                                        </span>
-                                        {{ suggestion.type|title }}
-                                    </h6>
-                                    <p class="mb-0">{{ suggestion.suggestion }}</p>
+        {% if keywords %}
+            {% if user_plan != 'free' %}
+                {% if seo_suggestions and seo_suggestions|length > 0 %}
+                <!-- Show AI-Powered SEO Suggestions for Pro/Premium users -->
+                <div class="row justify-content-center mt-4">
+                    <div class="col-lg-8">
+                        <div class="card shadow-lg border-{{ 'warning' if user_plan == 'premium' else 'primary' }}">
+                            <div class="card-header bg-{{ 'warning' if user_plan == 'premium' else 'primary' }} text-{{ 'dark' if user_plan == 'premium' else 'white' }}">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-lightbulb me-2"></i>{{ 'AI-Powered' if user_plan == 'premium' else 'Smart' }} SEO Suggestions
+                                    <span class="badge bg-{{ 'dark' if user_plan == 'premium' else 'light' }} text-{{ 'white' if user_plan == 'premium' else 'dark' }} ms-2">
+                                        {{ user_plan|title }}
+                                    </span>
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% for suggestion in seo_suggestions %}
+                                <div class="alert alert-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'info' }} mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="alert-heading mb-1">
+                                                <span class="badge bg-{{ 'danger' if suggestion.priority|lower == 'high' else 'warning' if suggestion.priority|lower == 'medium' else 'info' }} me-2">
+                                                    {{ suggestion.priority|title }} Priority
+                                                </span>
+                                                {{ suggestion.type|title }}
+                                            </h6>
+                                            <p class="mb-0">{{ suggestion.suggestion }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                
+                                <div class="text-center mt-3">
+                                    <small class="text-muted">
+                                        Showing {{ seo_suggestions|length }} of {{ limits.seo_suggestions }} suggestions for {{ user_plan|title }} plan.
+                                        {% if user_plan == 'pro' %}
+                                        <br><a href="{{ url_for('plans') }}" class="text-decoration-none">Upgrade to Premium</a> for advanced AI analysis and 10 suggestions per audit.
+                                        {% endif %}
+                                    </small>
                                 </div>
                             </div>
                         </div>
-                        {% endfor %}
-                        
-                        {% if seo_suggestions|length >= limits.seo_suggestions %}
-                        <div class="text-center mt-3">
-                            <small class="text-muted">
-                                Showing top {{ limits.seo_suggestions }} suggestions. 
-                                {% if user_plan == 'pro' %}
-                                <a href="{{ url_for('plans') }}" class="text-decoration-none">Upgrade to Premium</a> for more detailed analysis.
-                                {% endif %}
-                            </small>
+                    </div>
+                </div>
+                {% else %}
+                <!-- No suggestions found for Pro/Premium users -->
+                <div class="row justify-content-center mt-4">
+                    <div class="col-lg-8">
+                        <div class="card shadow-lg border-secondary">
+                            <div class="card-header bg-secondary text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-lightbulb me-2"></i>SEO Suggestions
+                                </h5>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="text-muted mb-3">
+                                    <i class="fas fa-info-circle fa-2x mb-2"></i>
+                                    <h6>No suggestions found. Try auditing another page.</h6>
+                                    <p class="small">This page may already be well-optimized, or we couldn't analyze enough content to generate specific recommendations.</p>
+                                </div>
+                            </div>
                         </div>
-                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+            <!-- Upgrade prompt for free users when they have keywords -->
+            <div class="row justify-content-center mt-4">
+                <div class="col-lg-8">
+                    <div class="card shadow-lg border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">
+                                <i class="fas fa-star me-2"></i>🔓 Unlock SEO Analysis
+                            </h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <h6 class="text-warning mb-3">
+                                <i class="fas fa-lock me-2"></i>Upgrade to get AI-powered SEO suggestions!
+                            </h6>
+                            <p class="text-muted mb-4">
+                                Get personalized recommendations to improve your page's search ranking based on the extracted keywords and content analysis.
+                            </p>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <a href="{{ url_for('upgrade_plan', plan='pro') }}" class="btn btn-outline-primary w-100">
+                                        <i class="fas fa-arrow-up me-2"></i>Upgrade to Pro - $15/month
+                                    </a>
+                                    <small class="text-muted d-block mt-1">5 suggestions per audit</small>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <a href="{{ url_for('upgrade_plan', plan='premium') }}" class="btn btn-primary w-100">
+                                        <i class="fas fa-crown me-2"></i>Go Premium - $30/month
+                                    </a>
+                                    <small class="text-muted d-block mt-1">10 AI-powered suggestions + API access</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        {% elif keywords and user_plan == 'free' %}
-        <!-- Upgrade prompt for free users -->
-        <div class="row justify-content-center mt-4">
-            <div class="col-lg-8">
-                <div class="card shadow-lg border-warning">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0">
-                            <i class="fas fa-star me-2"></i>SEO Analysis
-                        </h5>
-                    </div>
-                    <div class="card-body text-center">
-                        <h6 class="text-warning mb-3">
-                            <i class="fas fa-lock me-2"></i>Upgrade to get AI-powered SEO suggestions!
-                        </h6>
-                        <p class="text-muted mb-4">
-                            Get personalized recommendations to improve your page's search ranking based on the extracted keywords and content analysis.
-                        </p>
-                        <div class="row">
-                            <div class="col-md-6 mb-2">
-                                <a href="{{ url_for('upgrade_plan', plan='pro') }}" class="btn btn-outline-primary w-100">
-                                    <i class="fas fa-arrow-up me-2"></i>Upgrade to Pro - $15/month
-                                </a>
-                            </div>
-                            <div class="col-md-6 mb-2">
-                                <a href="{{ url_for('upgrade_plan', plan='premium') }}" class="btn btn-primary w-100">
-                                    <i class="fas fa-crown me-2"></i>Go Premium - $30/month
-                                </a>
-                            </div>
-                        </div>
-                        <small class="text-muted">
-                            Pro: 5 suggestions per audit | Premium: 10 suggestions + AI-powered analysis
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </div>
+            {% endif %}
         {% endif %}
                                 
 
