@@ -291,6 +291,7 @@ def extract_keywords():
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
         from seo_analyzer import generate_seo_suggestions
+        from seo_audit import SEOAuditor
         
         all_keywords = extract_keywords_from_url(url)
         seo_data = get_seo_metadata(url)
@@ -300,18 +301,33 @@ def extract_keywords():
         limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
         keywords = all_keywords[:limits['keywords_per_audit']]
         
-        # Generate SEO suggestions if plan allows
+        # Generate comprehensive SEO audit
         seo_suggestions = []
+        audit_results = []
+        
         if limits['seo_suggestions'] > 0:
-            # Use extracted keywords as target keywords for analysis
-            target_keywords = keywords[:3]  # Use top 3 keywords as targets
-            all_suggestions = generate_seo_suggestions(seo_data, target_keywords)
-            seo_suggestions = all_suggestions[:limits['seo_suggestions']]
+            # Create comprehensive SEO audit
+            auditor = SEOAuditor()
+            audit_results = auditor.analyze_page(seo_data, keywords, seo_data.get('content_text', ''))
+            
+            # Limit results based on plan
+            audit_results = audit_results[:limits['seo_suggestions']]
+            
+            # Convert audit results to suggestions format for backward compatibility
+            seo_suggestions = []
+            for result in audit_results:
+                seo_suggestions.append({
+                    'type': result['type'],
+                    'priority': result['priority'],
+                    'suggestion': f"{result['issue']}: {result['recommendation']}"
+                })
         
         # Store results in session for export
         session['last_keywords'] = keywords
         session['last_url'] = url
         session['last_suggestions'] = seo_suggestions
+        session['last_audit_results'] = audit_results
+        session['last_seo_data'] = seo_data
         
         # Increment usage counter
         increment_usage(user['id'], 'audit')
@@ -322,6 +338,8 @@ def extract_keywords():
                 'keywords': keywords, 
                 'url': url,
                 'seo_suggestions': seo_suggestions,
+                'audit_results': audit_results,
+                'seo_data': seo_data,
                 'plan': plan
             })
         
@@ -330,6 +348,8 @@ def extract_keywords():
                              keywords=keywords, 
                              url=url,
                              seo_suggestions=seo_suggestions,
+                             audit_results=audit_results,
+                             seo_data=seo_data,
                              user=user,
                              usage=get_user_usage(user['id']),
                              limits=limits,
@@ -425,8 +445,10 @@ def export_results(format):
     last_keywords = session.get('last_keywords', [])
     last_url = session.get('last_url', '')
     last_suggestions = session.get('last_suggestions', [])
+    last_audit_results = session.get('last_audit_results', [])
+    last_seo_data = session.get('last_seo_data', {})
     
-    if not last_keywords:
+    if not last_keywords and not last_audit_results:
         flash('No analysis results to export', 'warning')
         return redirect(url_for('tool'))
     
@@ -440,13 +462,48 @@ def export_results(format):
         
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(['Keyword', 'URL', 'Position'])
+        
+        # Export comprehensive data
+        writer.writerow(['Section', 'Type', 'Priority', 'Issue', 'Description', 'Impact', 'Recommendation'])
+        
+        # Add keywords
         for i, keyword in enumerate(last_keywords, 1):
-            writer.writerow([keyword, last_url, i])
+            writer.writerow(['Keywords', 'Keyword', f'Position {i}', keyword, '', '', ''])
+        
+        # Add audit results
+        for result in last_audit_results:
+            writer.writerow([
+                'SEO Audit',
+                result.get('type', ''),
+                result.get('priority', ''),
+                result.get('issue', ''),
+                result.get('description', ''),
+                result.get('impact', ''),
+                result.get('recommendation', '')
+            ])
+        
+        # Add SEO metadata
+        if last_seo_data:
+            writer.writerow(['Metadata', 'Title', '', last_seo_data.get('title', ''), '', '', ''])
+            writer.writerow(['Metadata', 'Description', '', last_seo_data.get('description', ''), '', '', ''])
+            writer.writerow(['Metadata', 'Page Speed', '', str(last_seo_data.get('page_speed_score', 0)), '', '', ''])
+            writer.writerow(['Metadata', 'Mobile Friendly', '', str(last_seo_data.get('mobile_friendly', False)), '', '', ''])
         
         response = make_response(output.getvalue())
         response.headers['Content-Type'] = 'text/csv'
-        response.headers['Content-Disposition'] = f'attachment; filename=seo_keywords_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.csv'
+        response.headers['Content-Disposition'] = f'attachment; filename=seo_audit_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.csv'
+        return response
+    elif format.lower() == 'report':
+        # Export detailed text report
+        from seo_audit import SEOAuditor
+        from flask import make_response
+        
+        auditor = SEOAuditor()
+        report = auditor.format_audit_report(last_audit_results)
+        
+        response = make_response(report)
+        response.headers['Content-Type'] = 'text/plain'
+        response.headers['Content-Disposition'] = f'attachment; filename=seo_audit_report_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.txt'
         return response
     
     return redirect(url_for('tool'))
