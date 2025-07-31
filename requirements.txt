@@ -7,3 +7,6 @@ gunicorn
 beautifulsoup4
 openai
 flask
+openai
+werkzeug
+openai

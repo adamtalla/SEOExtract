@@ -1,9 +1,9 @@
 
+import os
 import json
 import logging
 import openai
-import os
-from typing import List, Dict, Any
+from typing import Dict, List
 
 class AISEOAnalyzer:
     def __init__(self):
@@ -58,6 +58,15 @@ class AISEOAnalyzer:
             logging.error(f"Error generating AI suggestions: {str(e)}")
             return self._fallback_suggestions(seo_data, keywords)
     
+    def generate_hybrid_suggestions(self, url: str, seo_data: Dict, keywords: List[str], user_plan: str = 'free') -> List[Dict]:
+        """
+        Generate suggestions based on user plan - AI for premium, rule-based for others
+        """
+        if user_plan == 'premium' and self.openai_api_key:
+            return self.generate_ai_suggestions(url, seo_data, keywords)
+        else:
+            return self._fallback_suggestions(seo_data, keywords)
+    
     def _build_analysis_prompt(self, url: str, seo_data: Dict, keywords: List[str]) -> str:
         """Build the analysis prompt with actual website data"""
         
@@ -73,7 +82,7 @@ class AISEOAnalyzer:
         
         prompt = f"""You are an expert SEO analyst.
 
-You will be given real SEO data extracted from a website. Based on this data, provide smart, **site-specific SEO improvement suggestions**. Do not give generic advice — tailor your suggestions directly to what you observe.
+You will be given real SEO data extracted from a website. Based on this data, provide smart, site-specific SEO improvement suggestions. Do not give generic advice — tailor your suggestions directly to what you observe.
 
 --- Website Info ---
 URL: {url}
@@ -84,14 +93,13 @@ Content Sample: {content_sample or "No content sample available"}
 Top Keywords Found: {', '.join(keywords) if keywords else "No keywords extracted"}
 
 --- Instructions ---
-Analyze this website and give 5–10 **high-impact** SEO recommendations tailored to the actual content and structure. Use this format for each:
+Analyze this website and give 5–10 high-impact SEO recommendations tailored to the actual content and structure. Use this format for each:
 
-- **Type**: (e.g., Meta, Content, Keywords, Structure, Speed, Mobile, Schema)
-- **Priority**: (High, Medium, Low)
-- **Suggestion**: One specific and practical suggestion for improving SEO based on the data.
+- Type: (Meta, Content, Keywords, Structure, Speed, Mobile, Schema)
+- Priority: (High, Medium, Low)
+- Suggestion: One specific and practical suggestion for improving SEO based on the data.
 
-Make sure your suggestions are specific to this site's issues. Don't repeat boilerplate SEO tips. Return the output as a JSON array of objects like this:
-
+Return the output as a JSON array of objects like:
 [
   {{
     "type": "Content",
@@ -136,13 +144,19 @@ Make sure your suggestions are specific to this site's issues. Don't repeat boil
             suggestions.append({
                 'type': 'Meta',
                 'priority': 'High',
-                'suggestion': 'Add a descriptive page title (50-60 characters) that includes your primary keyword.'
+                'suggestion': 'Add a descriptive title tag (50-60 characters) that includes your primary keyword.'
+            })
+        elif len(title) < 30:
+            suggestions.append({
+                'type': 'Meta',
+                'priority': 'Medium',
+                'suggestion': f'Title is too short ({len(title)} chars). Expand to 50-60 characters with keywords.'
             })
         elif len(title) > 60:
             suggestions.append({
                 'type': 'Meta',
-                'priority': 'High',
-                'suggestion': f'Shorten the page title from {len(title)} to under 60 characters to prevent truncation in search results.'
+                'priority': 'Medium',
+                'suggestion': f'Title is too long ({len(title)} chars). Shorten to under 60 characters.'
             })
         
         # Meta description analysis
@@ -151,44 +165,48 @@ Make sure your suggestions are specific to this site's issues. Don't repeat boil
             suggestions.append({
                 'type': 'Meta',
                 'priority': 'High',
-                'suggestion': 'Add a compelling meta description (150-160 characters) that includes your primary keyword.'
+                'suggestion': 'Add a compelling meta description (150-160 characters) with your primary keyword.'
+            })
+        elif len(description) > 160:
+            suggestions.append({
+                'type': 'Meta',
+                'priority': 'Medium',
+                'suggestion': f'Meta description too long ({len(description)} chars). Shorten to under 160 characters.'
             })
         
-        # Keyword analysis
-        if keywords and title:
-            primary_keyword = keywords[0].lower()
-            if primary_keyword not in title.lower():
-                suggestions.append({
-                    'type': 'Keywords',
-                    'priority': 'High',
-                    'suggestion': f'Include the primary keyword "{keywords[0]}" in the page title for better relevance.'
-                })
-        
-        # Heading analysis
+        # Headings analysis
         headings = seo_data.get('headings', {})
-        if not headings.get('h1'):
+        h1_tags = headings.get('h1', [])
+        if not h1_tags:
             suggestions.append({
                 'type': 'Structure',
                 'priority': 'High',
-                'suggestion': 'Add an H1 tag that includes your primary keyword and describes the main topic.'
+                'suggestion': 'Add a clear H1 heading that includes your primary keyword.'
             })
-        
-        # Page speed
-        speed_score = seo_data.get('page_speed_score', 0)
-        if speed_score < 70:
+        elif len(h1_tags) > 1:
             suggestions.append({
-                'type': 'Speed',
+                'type': 'Structure',
                 'priority': 'Medium',
-                'suggestion': f'Improve page speed score from {speed_score}/100 by optimizing images and enabling compression.'
+                'suggestion': f'Multiple H1 tags found ({len(h1_tags)}). Use only one H1 per page.'
             })
         
-        return suggestions[:8]  # Limit fallback suggestions
-
-    def generate_hybrid_suggestions(self, url: str, seo_data: Dict, keywords: List[str], user_plan: str = 'free') -> List[Dict]:
-        """
-        Generate suggestions based on user plan - AI for premium, rule-based for others
-        """
-        if user_plan == 'premium' and self.openai_api_key:
-            return self.generate_ai_suggestions(url, seo_data, keywords)
-        else:
-            return self._fallback_suggestions(seo_data, keywords)
+        # Keywords analysis
+        if keywords:
+            content_text = seo_data.get('content_text', '').lower()
+            for keyword in keywords[:3]:  # Check top 3 keywords
+                if keyword.lower() not in content_text:
+                    suggestions.append({
+                        'type': 'Content',
+                        'priority': 'Medium',
+                        'suggestion': f'Include the keyword "{keyword}" naturally in your content for better relevance.'
+                    })
+        
+        # Mobile friendliness
+        if not seo_data.get('mobile_friendly', True):
+            suggestions.append({
+                'type': 'Mobile',
+                'priority': 'High',
+                'suggestion': 'Add viewport meta tag for mobile-friendly display.'
+            })
+        
+        return suggestions[:8]  # Return up to 8 suggestions
