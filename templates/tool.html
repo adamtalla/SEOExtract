@@ -158,7 +158,7 @@
         {% endif %}
 
         <!-- SEO Suggestions Section -->
-        {% if seo_suggestions or audit_results %}
+        {% if seo_suggestions and seo_suggestions|length > 0 %}
         <div class="row justify-content-center mt-5">
             <div class="col-lg-8">
                 <div class="card shadow-lg">
@@ -168,50 +168,76 @@
                         </h5>
                     </div>
                     <div class="card-body">
-                        {% if seo_suggestions %}
-                            <div class="row">
-                                {% for suggestion in seo_suggestions %}
-                                <div class="col-md-6 mb-3">
-                                    <div class="card h-100 border-{{ 'danger' if suggestion.priority == 'High' else 'warning' if suggestion.priority == 'Medium' else 'info' }}">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <h6 class="card-title text-{{ 'danger' if suggestion.priority == 'High' else 'warning' if suggestion.priority == 'Medium' else 'info' }}">
-                                                    <i class="fas fa-{{ 'exclamation-triangle' if suggestion.priority == 'High' else 'exclamation-circle' if suggestion.priority == 'Medium' else 'info-circle' }} me-2"></i>
-                                                    {{ suggestion.type }}
-                                                </h6>
-                                                <span class="badge bg-{{ 'danger' if suggestion.priority == 'High' else 'warning' if suggestion.priority == 'Medium' else 'info' }}">{{ suggestion.priority }}</span>
-                                            </div>
-                                            <p class="card-text">{{ suggestion.suggestion }}</p>
+                        <div class="row">
+                            {% for suggestion in seo_suggestions %}
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100 border-{{ 'danger' if suggestion.priority == 'High' else 'warning' if suggestion.priority == 'Medium' else 'info' }}">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title text-{{ 'danger' if suggestion.priority == 'High' else 'warning' if suggestion.priority == 'Medium' else 'info' }}">
+                                                <i class="fas fa-{{ 'exclamation-triangle' if suggestion.priority == 'High' else 'exclamation-circle' if suggestion.priority == 'Medium' else 'info-circle' }} me-2"></i>
+                                                {{ suggestion.type|title }}
+                                            </h6>
+                                            <span class="badge bg-{{ 'danger' if suggestion.priority == 'High' else 'warning' if suggestion.priority == 'Medium' else 'info' }}">{{ suggestion.priority }}</span>
                                         </div>
+                                        <p class="card-text">{{ suggestion.suggestion }}</p>
                                     </div>
                                 </div>
-                                {% endfor %}
                             </div>
-                        {% elif audit_results %}
-                            <div class="row">
-                                {% for result in audit_results %}
-                                <div class="col-md-6 mb-3">
-                                    <div class="card h-100 border-{{ 'danger' if result.priority == 'High' else 'warning' if result.priority == 'Medium' else 'info' }}">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <h6 class="card-title text-{{ 'danger' if result.priority == 'High' else 'warning' if result.priority == 'Medium' else 'info' }}">
-                                                    <i class="fas fa-{{ 'exclamation-triangle' if result.priority == 'High' else 'exclamation-circle' if result.priority == 'Medium' else 'info-circle' }} me-2"></i>
-                                                    {{ result.type }}
-                                                </h6>
-                                                <span class="badge bg-{{ 'danger' if result.priority == 'High' else 'warning' if result.priority == 'Medium' else 'info' }}">{{ result.priority }}</span>
-                                            </div>
-                                            <p class="card-text"><strong>Issue:</strong> {{ result.get('issue', result.get('recommendation', 'SEO improvement needed')) }}</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% elif audit_results and audit_results|length > 0 %}
+        <div class="row justify-content-center mt-5">
+            <div class="col-lg-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-lightbulb me-2"></i>SEO Analysis Results
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for result in audit_results %}
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100 border-{{ 'danger' if result.priority == 'High' else 'warning' if result.priority == 'Medium' else 'info' }}">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title text-{{ 'danger' if result.priority == 'High' else 'warning' if result.priority == 'Medium' else 'info' }}">
+                                                <i class="fas fa-{{ 'exclamation-triangle' if result.priority == 'High' else 'exclamation-circle' if result.priority == 'Medium' else 'info-circle' }} me-2"></i>
+                                                {{ result.type|title }}
+                                            </h6>
+                                            <span class="badge bg-{{ 'danger' if result.priority == 'High' else 'warning' if result.priority == 'Medium' else 'info' }}">{{ result.priority }}</span>
                                         </div>
+                                        <p class="card-text">{{ result.get('issue', result.get('recommendation', result.get('suggestion', 'SEO improvement needed'))) }}</p>
                                     </div>
                                 </div>
-                                {% endfor %}
                             </div>
-                        {% else %}
-                            <div class="alert alert-success">
-                                <i class="fas fa-check-circle me-2"></i>
-                                <strong>Great!</strong> No major SEO issues found. Your page appears to be well-optimized!
-                            </div>
-                        {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% elif keywords and keywords|length > 0 %}
+        <div class="row justify-content-center mt-5">
+            <div class="col-lg-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>SEO Analysis
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-star me-2"></i>
+                            <strong>Upgrade to get AI-powered SEO suggestions!</strong> 
+                            <p class="mb-0 mt-2">Get personalized recommendations to improve your page's search ranking based on the extracted keywords and content analysis.</p>
+                            <a href="/plans" class="btn btn-primary btn-sm mt-2">View Plans</a>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -62,6 +62,10 @@ class AISEOAnalyzer:
         """
         Generate suggestions based on user plan - AI for premium, rule-based for others
         """
+        # Ensure keywords is a list
+        if not isinstance(keywords, list):
+            keywords = []
+            
         if user_plan == 'premium' and self.openai_api_key:
             return self.generate_ai_suggestions(url, seo_data, keywords)
         else:
