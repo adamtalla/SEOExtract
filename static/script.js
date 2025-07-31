@@ -236,70 +236,8 @@ function showToast(message, type = 'info') {
     });
 }
 
-// Theme management functions
-function initializeTheme() {
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    applyTheme(savedTheme);
-    
-    // Update theme toggle if it exists
-    const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        themeToggle.checked = savedTheme === 'dark';
-    }
-}
-
-function applyTheme(theme) {
-    const htmlRoot = document.documentElement || document.getElementById('htmlRoot');
-    const bootstrapTheme = document.getElementById('bootstrapTheme');
-    
-    if (theme === 'dark') {
-        htmlRoot.setAttribute('data-bs-theme', 'dark');
-        if (bootstrapTheme) {
-            bootstrapTheme.href = 'https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css';
-        }
-        document.body.style.backgroundColor = '#1a1a1a';
-        document.body.style.color = '#ffffff';
-    } else {
-        htmlRoot.setAttribute('data-bs-theme', 'light');
-        if (bootstrapTheme) {
-            bootstrapTheme.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
-        }
-        document.body.style.backgroundColor = '#ffffff';
-        document.body.style.color = '#000000';
-    }
-}
-
-function toggleTheme() {
-    const currentTheme = localStorage.getItem('theme') || 'dark';
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    
-    applyTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    
-    // Update toggle state
-    const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        themeToggle.checked = newTheme === 'dark';
-    }
-    
-    showToast(`Switched to ${newTheme} mode`, 'success');
-}
-
 // Add event listeners when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize theme on page load
-    initializeTheme();
-    
-    // Add theme toggle event listener
-    const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('change', function() {
-            const newTheme = this.checked ? 'dark' : 'light';
-            applyTheme(newTheme);
-            localStorage.setItem('theme', newTheme);
-            showToast(`Switched to ${newTheme} mode`, 'success');
-        });
-    }
-    
+    // Add any additional event listeners here if needed
     console.log('SEOExtract app loaded successfully');
 });
