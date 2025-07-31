@@ -292,12 +292,6 @@ def extract_keywords():
         plan = user.get('plan', 'free')
         limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
         
-        # Initialize variables first
-        keywords = []
-        seo_suggestions = []
-        audit_results = []
-        seo_data = {}
-        
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
         from seo_audit import SEOAuditor
@@ -309,6 +303,9 @@ def extract_keywords():
         keywords = all_keywords[:limits['keywords_per_audit']]
         
         # Generate comprehensive SEO audit
+        seo_suggestions = []
+        audit_results = []
+        
         if limits['seo_suggestions'] > 0:
             # Create comprehensive SEO audit
             auditor = SEOAuditor()
