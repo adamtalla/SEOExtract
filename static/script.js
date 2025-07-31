@@ -39,40 +39,7 @@ function fallbackCopy(text) {
     document.body.removeChild(textArea);
 }
 
-// Show toast notification
-function showToast(message, type = 'info') {
-    // Create toast element
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} position-fixed`;
-    toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
-    toast.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close ms-2" onclick="this.parentElement.remove()"></button>
-    `;
-
-    document.body.appendChild(toast);
-
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-        if (toast.parentElement) {
-            toast.remove();
-        }
-    }, 3000);
-}
-
-// Form submission handling
 document.addEventListener('DOMContentLoaded', function() {
-    const extractForm = document.getElementById('extractForm');
-    const extractBtn = document.getElementById('extractBtn');
-
-    if (extractForm && extractBtn) {
-        extractForm.addEventListener('submit', function() {
-            // Show loading state
-            extractBtn.disabled = true;
-            extractBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
-        });
-    }
-
     // Quick demo form handling
     const quickDemo = document.getElementById('quickDemo');
     if (quickDemo) {
@@ -81,6 +48,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = this.querySelector('input[type="url"]').value;
             if (url) {
                 window.location.href = `/tool?demo_url=${encodeURIComponent(url)}`;
+            }
+        });
+    }
+
+    // Initialize any other interactive elements
+    const extractForm = document.getElementById('extractForm');
+    if (extractForm) {
+        extractForm.addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
+                submitBtn.disabled = true;
             }
         });
     }
@@ -100,4 +79,34 @@ function exportResults(format = 'pdf') {
     setTimeout(() => {
         showToast(`Export feature coming soon!`, 'info');
     }, 1000);
+}
+
+// Toast notification function
+function showToast(message, type = 'info') {
+    // Create toast element if it doesn't exist
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        document.body.appendChild(toastContainer);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type === 'info' ? 'primary' : type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+
+    // Remove toast after it's hidden
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
 }

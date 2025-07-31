@@ -54,6 +54,9 @@ PLAN_LIMITS = {
     }
 }
 
+# Special access for admin user
+ADMIN_EMAIL = "tall3aadam@gmail.com"
+
 def supabase_request(method, endpoint, data=None, auth_token=None):
     """Make a request to Supabase"""
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -188,9 +191,15 @@ def login():
             # Mock user data
             session['user_id'] = f"user_{hash(email) % 10000}"
             session['email'] = email
-            session['plan'] = 'free'  # Default plan
             
-            flash('Login successful!', 'success')
+            # Special access for admin user
+            if email == ADMIN_EMAIL:
+                session['plan'] = 'premium'  # Give admin premium access
+                flash('Welcome back, Admin! Premium access granted.', 'success')
+            else:
+                session['plan'] = 'free'  # Default plan
+                flash('Login successful!', 'success')
+            
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid email or password', 'danger')
@@ -211,9 +220,15 @@ def register():
             # Mock user creation
             session['user_id'] = f"user_{hash(email) % 10000}"
             session['email'] = email
-            session['plan'] = 'free'
             
-            flash('Account created successfully!', 'success')
+            # Special access for admin user
+            if email == ADMIN_EMAIL:
+                session['plan'] = 'premium'  # Give admin premium access
+                flash('Welcome! Premium access granted for admin account.', 'success')
+            else:
+                session['plan'] = 'free'
+                flash('Account created successfully!', 'success')
+            
             return redirect(url_for('dashboard'))
         else:
             flash('Please fill in all fields', 'danger')
