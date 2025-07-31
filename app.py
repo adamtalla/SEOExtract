@@ -402,32 +402,46 @@ def extract_keywords():
     # STEP 9: Try to generate SEO suggestions (SAFELY)
     try:
         if limits['seo_suggestions'] > 0 and keywords:
+            # Use AI-powered suggestions for premium users, rule-based for others
+            from ai_seo_analyzer import AISEOAnalyzer
+            
+            ai_analyzer = AISEOAnalyzer()
+            seo_suggestions = ai_analyzer.generate_hybrid_suggestions(
+                url, seo_data, keywords, plan)
+            
+            # Also generate detailed audit results for export
             from seo_audit import SEOAuditor
             auditor = SEOAuditor()
             audit_results = auditor.analyze_page(
                 seo_data, keywords, seo_data.get('content_text', ''))
 
-            # Ensure audit_results is a list
+            # Ensure audit_results is a list and limit
             if not isinstance(audit_results, list):
                 audit_results = []
-
-            # Limit results and convert to suggestions
             audit_results = audit_results[:limits['seo_suggestions']]
 
-            for result in audit_results:
-                if isinstance(result, dict):
-                    seo_suggestions.append({
-                        'type':
-                        result.get('type', 'General'),
-                        'priority':
-                        result.get('priority', 'Medium'),
-                        'suggestion':
-                        f"{result.get('issue', 'Issue')}: {result.get('recommendation', 'No recommendation')}"
-                    })
     except ImportError as e:
-        logging.error(f"Import error for seo_audit: {str(e)}")
-        audit_results = []
-        seo_suggestions = []
+        logging.error(f"Import error for AI analyzer: {str(e)}")
+        # Fallback to existing system
+        try:
+            from seo_audit import SEOAuditor
+            auditor = SEOAuditor()
+            audit_results = auditor.analyze_page(
+                seo_data, keywords, seo_data.get('content_text', ''))
+            
+            if isinstance(audit_results, list):
+                audit_results = audit_results[:limits['seo_suggestions']]
+                for result in audit_results:
+                    if isinstance(result, dict):
+                        seo_suggestions.append({
+                            'type': result.get('type', 'General'),
+                            'priority': result.get('priority', 'Medium'),
+                            'suggestion': f"{result.get('issue', 'Issue')}: {result.get('recommendation', 'No recommendation')}"
+                        })
+        except Exception as fallback_error:
+            logging.error(f"Fallback error: {str(fallback_error)}")
+            audit_results = []
+            seo_suggestions = []
     except Exception as e:
         logging.error(f"Error generating SEO suggestions: {str(e)}")
         audit_results = []
@@ -553,23 +567,14 @@ def api_extract_keywords():
         seo_data = get_seo_metadata(url)
         keywords = all_keywords[:limits['keywords_per_audit']]
 
-        # Generate SEO suggestions
+        # Generate SEO suggestions using AI analyzer
         seo_suggestions = []
         if limits['seo_suggestions'] > 0:
-            auditor = SEOAuditor()
-            audit_results = auditor.analyze_page(
-                seo_data, keywords, seo_data.get('content_text', ''))
-
-            # Convert to suggestions format and limit
-            for result in audit_results[:limits['seo_suggestions']]:
-                seo_suggestions.append({
-                    'type':
-                    result['type'],
-                    'priority':
-                    result['priority'],
-                    'suggestion':
-                    f"{result['issue']}: {result['recommendation']}"
-                })
+            from ai_seo_analyzer import AISEOAnalyzer
+            
+            ai_analyzer = AISEOAnalyzer()
+            seo_suggestions = ai_analyzer.generate_hybrid_suggestions(
+                url, seo_data, keywords, plan)
 
         # Increment usage
         increment_usage(user['id'], 'audit')
