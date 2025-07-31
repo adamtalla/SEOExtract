@@ -702,13 +702,173 @@ def upgrade_plan(plan):
 
     if plan in ['pro', 'premium']:
         # In production, redirect to Stripe Checkout
-        # For demo, just update the session
+        # For demo, just update the session and call Supabase function
         session['plan'] = plan
+        
+        # Call Supabase function to upgrade plan
+        if SUPABASE_URL and SUPABASE_KEY:
+            try:
+                # Call the upgrade function
+                upgrade_data = {
+                    'user_email': user.get('email'),
+                    'new_plan': plan,
+                    'period_end': (datetime.now() + timedelta(days=30)).isoformat()
+                }
+                
+                response = supabase_request('POST', 'rpc/upgrade_user_plan', upgrade_data)
+                if response:
+                    logging.info(f"Plan upgraded in Supabase for {user.get('email')} to {plan}")
+                else:
+                    logging.error(f"Failed to upgrade plan in Supabase for {user.get('email')}")
+                    
+            except Exception as e:
+                logging.error(f"Error upgrading plan in Supabase: {str(e)}")
+        
         flash(f'Successfully upgraded to {plan.title()} plan!', 'success')
     else:
         flash('Invalid plan selected', 'danger')
 
     return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/users')
+@login_required
+def admin_users():
+    """Admin page to manage users (admin only)"""
+    user = get_user_from_session()
+    
+    if not user or user.get('email') != ADMIN_EMAIL:
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Get all users from Supabase
+    users = []
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            users_data = supabase_request('GET', 'user_profiles?select=*,payments(*),plan_changes(*)')
+            if users_data:
+                users = users_data
+        except Exception as e:
+            logging.error(f"Error fetching users: {str(e)}")
+            flash('Error fetching users from database', 'danger')
+    
+    return render_template('admin/users.html', users=users, user=user)
+
+
+@app.route('/admin/change_plan/<user_id>/<new_plan>')
+@login_required
+def admin_change_plan(user_id, new_plan):
+    """Admin function to change user plan"""
+    user = get_user_from_session()
+    
+    if not user or user.get('email') != ADMIN_EMAIL:
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if new_plan not in ['free', 'pro', 'premium']:
+        flash('Invalid plan selected', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    # Update plan in Supabase
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            # Update user plan directly
+            update_data = {
+                'plan': new_plan,
+                'updated_at': datetime.now().isoformat()
+            }
+            
+            response = supabase_request('PATCH', f'user_profiles?id=eq.{user_id}', update_data)
+            
+            if response:
+                # Log admin action
+                admin_action = {
+                    'admin_id': user['id'],
+                    'action_type': 'plan_change',
+                    'target_user_id': user_id,
+                    'details': {'new_plan': new_plan, 'changed_by': 'admin'}
+                }
+                supabase_request('POST', 'admin_actions', admin_action)
+                
+                flash(f'User plan successfully changed to {new_plan.title()}', 'success')
+            else:
+                flash('Error updating user plan', 'danger')
+                
+        except Exception as e:
+            logging.error(f"Error changing user plan: {str(e)}")
+            flash('Error updating user plan', 'danger')
+    
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/webhook/stripe', methods=['POST'])
+def stripe_webhook():
+    """Handle Stripe webhooks for automatic plan upgrades"""
+    try:
+        payload = request.get_data()
+        sig_header = request.headers.get('Stripe-Signature')
+        
+        # In production, verify the webhook signature
+        # event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        
+        # For demo, parse the JSON directly
+        event_data = request.get_json()
+        
+        if event_data.get('type') == 'checkout.session.completed':
+            session_data = event_data.get('data', {}).get('object', {})
+            customer_email = session_data.get('customer_details', {}).get('email')
+            
+            # Determine plan from amount or metadata
+            amount = session_data.get('amount_total', 0)
+            if amount == 1500:  # $15.00
+                plan = 'pro'
+            elif amount == 3000:  # $30.00
+                plan = 'premium'
+            else:
+                logging.error(f"Unknown payment amount: {amount}")
+                return jsonify({'status': 'error'}), 400
+            
+            # Upgrade user plan
+            if customer_email and SUPABASE_URL and SUPABASE_KEY:
+                try:
+                    upgrade_data = {
+                        'user_email': customer_email,
+                        'new_plan': plan,
+                        'stripe_subscription_id': session_data.get('subscription'),
+                        'period_end': (datetime.now() + timedelta(days=30)).isoformat()
+                    }
+                    
+                    response = supabase_request('POST', 'rpc/upgrade_user_plan', upgrade_data)
+                    
+                    if response:
+                        # Log payment
+                        payment_data = {
+                            'stripe_payment_intent_id': session_data.get('payment_intent'),
+                            'amount': amount,
+                            'status': 'paid',
+                            'plan_purchased': plan,
+                            'processed_at': datetime.now().isoformat()
+                        }
+                        
+                        # Get user ID first
+                        user_data = supabase_request('GET', f'user_profiles?email=eq.{customer_email}&select=id')
+                        if user_data and len(user_data) > 0:
+                            payment_data['user_id'] = user_data[0]['id']
+                            supabase_request('POST', 'payments', payment_data)
+                        
+                        logging.info(f"Successfully upgraded {customer_email} to {plan}")
+                    else:
+                        logging.error(f"Failed to upgrade {customer_email} to {plan}")
+                        
+                except Exception as e:
+                    logging.error(f"Error processing webhook: {str(e)}")
+                    return jsonify({'status': 'error'}), 500
+        
+        return jsonify({'status': 'success'}), 200
+        
+    except Exception as e:
+        logging.error(f"Webhook error: {str(e)}")
+        return jsonify({'status': 'error'}), 400
 
 
 if __name__ == '__main__':

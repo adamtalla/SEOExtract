@@ -1,0 +1,142 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - SEOExtract Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-search me-2"></i>SEOExtract Admin
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/dashboard">Dashboard</a>
+                <a class="nav-link" href="/logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1>User Management</h1>
+                    <span class="badge bg-warning">Admin Access</span>
+                </div>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">All Users</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Name</th>
+                                        <th>Current Plan</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in users %}
+                                    <tr>
+                                        <td>{{ user.email }}</td>
+                                        <td>{{ user.full_name or 'N/A' }}</td>
+                                        <td>
+                                            <span class="badge bg-{{ 'secondary' if user.plan == 'free' else 'primary' if user.plan == 'pro' else 'warning' }}">
+                                                {{ user.plan.title() }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{{ 'success' if user.subscription_status == 'active' else 'secondary' }}">
+                                                {{ user.subscription_status or 'inactive' }}
+                                            </span>
+                                        </td>
+                                        <td>{{ user.created_at[:10] if user.created_at else 'N/A' }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                {% if user.plan != 'free' %}
+                                                <a href="/admin/change_plan/{{ user.id }}/free" 
+                                                   class="btn btn-outline-secondary"
+                                                   onclick="return confirm('Downgrade {{ user.email }} to Free plan?')">
+                                                    Free
+                                                </a>
+                                                {% endif %}
+                                                {% if user.plan != 'pro' %}
+                                                <a href="/admin/change_plan/{{ user.id }}/pro" 
+                                                   class="btn btn-outline-primary"
+                                                   onclick="return confirm('Change {{ user.email }} to Pro plan?')">
+                                                    Pro
+                                                </a>
+                                                {% endif %}
+                                                {% if user.plan != 'premium' %}
+                                                <a href="/admin/change_plan/{{ user.id }}/premium" 
+                                                   class="btn btn-outline-warning"
+                                                   onclick="return confirm('Upgrade {{ user.email }} to Premium plan?')">
+                                                    Premium
+                                                </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Free Users</h5>
+                                <h2 class="text-secondary">{{ users | selectattr('plan', 'equalto', 'free') | list | length }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Pro Users</h5>
+                                <h2 class="text-primary">{{ users | selectattr('plan', 'equalto', 'pro') | list | length }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Premium Users</h5>
+                                <h2 class="text-warning">{{ users | selectattr('plan', 'equalto', 'premium') | list | length }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
