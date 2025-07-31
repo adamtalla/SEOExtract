@@ -263,6 +263,13 @@ def dashboard():
 @login_required
 def extract_keywords():
     """Extract keywords from URL - handles both form and JSON requests"""
+    # Initialize all variables at the start to avoid undefined errors
+    keywords = []
+    seo_suggestions = []
+    audit_results = []
+    seo_data = {}
+    url = ''
+    
     try:
         user = get_user_from_session()
         
@@ -277,9 +284,9 @@ def extract_keywords():
         # Handle both form data and JSON data
         if request.is_json:
             data = request.get_json()
-            url = data.get('url')
+            url = data.get('url', '')
         else:
-            url = request.form.get('url')
+            url = request.form.get('url', '')
         
         if not url:
             return jsonify({'error': 'URL is required'}), 400
@@ -288,23 +295,21 @@ def extract_keywords():
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
+        # Get plan limits
+        plan = user.get('plan', 'free')
+        limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+        
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
-        from seo_analyzer import generate_seo_suggestions
         from seo_audit import SEOAuditor
         
         all_keywords = extract_keywords_from_url(url)
         seo_data = get_seo_metadata(url)
         
-        # Apply plan limits
-        plan = user.get('plan', 'free')
-        limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+        # Apply plan limits to keywords
         keywords = all_keywords[:limits['keywords_per_audit']]
         
         # Generate comprehensive SEO audit
-        seo_suggestions = []
-        audit_results = []
-        
         if limits['seo_suggestions'] > 0:
             # Create comprehensive SEO audit
             auditor = SEOAuditor()
@@ -314,7 +319,6 @@ def extract_keywords():
             audit_results = audit_results[:limits['seo_suggestions']]
             
             # Convert audit results to suggestions format for backward compatibility
-            seo_suggestions = []
             for result in audit_results:
                 seo_suggestions.append({
                     'type': result['type'],
@@ -362,10 +366,15 @@ def extract_keywords():
         if request.is_json:
             return jsonify({'error': error_message}), 500
         
+        # Get user safely for error handling
+        user = get_user_from_session()
+        if not user:
+            user = {'id': 'guest', 'plan': 'free'}
+        
         flash(f"Error analyzing website: {error_message}", 'danger')
         return render_template('tool.html', 
                              error=error_message, 
-                             url=url if 'url' in locals() else '',
+                             url=url,
                              user=user,
                              usage=get_user_usage(user['id']),
                              limits=PLAN_LIMITS.get(user.get('plan', 'free'), PLAN_LIMITS['free']),
@@ -401,7 +410,7 @@ def api_extract_keywords():
         
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
-        from seo_analyzer import generate_seo_suggestions
+        from seo_audit import SEOAuditor
         
         all_keywords = extract_keywords_from_url(url)
         seo_data = get_seo_metadata(url)
@@ -410,9 +419,16 @@ def api_extract_keywords():
         # Generate SEO suggestions
         seo_suggestions = []
         if limits['seo_suggestions'] > 0:
-            target_keywords = keywords[:3]  # Use top 3 keywords as targets
-            all_suggestions = generate_seo_suggestions(seo_data, target_keywords)
-            seo_suggestions = all_suggestions[:limits['seo_suggestions']]
+            auditor = SEOAuditor()
+            audit_results = auditor.analyze_page(seo_data, keywords, seo_data.get('content_text', ''))
+            
+            # Convert to suggestions format and limit
+            for result in audit_results[:limits['seo_suggestions']]:
+                seo_suggestions.append({
+                    'type': result['type'],
+                    'priority': result['priority'],
+                    'suggestion': f"{result['issue']}: {result['recommendation']}"
+                })
         
         # Increment usage
         increment_usage(user['id'], 'audit')
