@@ -1,0 +1,390 @@
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark" id="htmlRoot">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - SEOExtract</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet" id="bootstrapTheme">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <style>
+        .theme-toggle {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        
+        .theme-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .theme-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .theme-slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .theme-slider {
+            background-color: #2196F3;
+        }
+        
+        input:checked + .theme-slider:before {
+            transform: translateX(26px);
+        }
+        
+        .theme-icons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 0 8px;
+            pointer-events: none;
+        }
+        
+        .theme-icon {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        input:checked + .theme-slider .theme-icon.sun {
+            color: white;
+        }
+        
+        input:not(:checked) + .theme-slider .theme-icon.moon {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-search me-2"></i>SEOExtract
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/tool">Tool</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history">History</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/settings">Settings</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">{{ user.email if user else 'Guest' }}</span>
+                    <a href="/logout" class="btn btn-outline-light">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="display-5 mb-3">Settings</h1>
+                <p class="lead text-muted">Manage your account preferences and settings</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Theme Settings -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-palette me-2"></i>Appearance
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h6 class="mb-1">Theme</h6>
+                                <small class="text-muted">Choose between light and dark mode</small>
+                            </div>
+                            <div class="theme-toggle">
+                                <input type="checkbox" id="themeToggle">
+                                <span class="theme-slider">
+                                    <div class="theme-icons">
+                                        <i class="fas fa-sun theme-icon sun"></i>
+                                        <i class="fas fa-moon theme-icon moon"></i>
+                                    </div>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Your theme preference will be saved and applied across all pages.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Information -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-user me-2"></i>Account Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Email:</strong></label>
+                            <p class="form-control-plaintext">{{ user.email if user else 'Not logged in' }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Username:</strong></label>
+                            <p class="form-control-plaintext">{{ user.email.split('@')[0] if user and user.email else 'Guest' }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Current Plan:</strong></label>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-{{ 'success' if user_plan == 'free' else 'primary' if user_plan == 'pro' else 'warning' }} fs-6 me-2">
+                                    {{ user_plan.title() if user_plan else 'Free' }}
+                                </span>
+                                {% if user_plan == 'pro' %}
+                                <small class="text-muted">$10/month</small>
+                                {% elif user_plan == 'premium' %}
+                                <small class="text-muted">$20/month</small>
+                                {% else %}
+                                <small class="text-muted">Free</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Plan Details -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-crown me-2"></i>Plan Details & Features
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Free Plan -->
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-secondary {{ 'bg-primary bg-opacity-10' if user_plan == 'free' else '' }}">
+                                    <div class="card-header text-center bg-secondary">
+                                        <h6 class="mb-0">Free Plan</h6>
+                                        <small class="text-muted">$0/month</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="list-unstyled mb-0">
+                                            <li><i class="fas fa-check text-success me-2"></i>3 audits per month</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>5 keywords per audit</li>
+                                            <li><i class="fas fa-times text-danger me-2"></i>No SEO suggestions</li>
+                                            <li><i class="fas fa-times text-danger me-2"></i>No export features</li>
+                                            <li><i class="fas fa-times text-danger me-2"></i>No API access</li>
+                                        </ul>
+                                        {% if user_plan == 'free' %}
+                                        <div class="mt-2">
+                                            <span class="badge bg-success">Current Plan</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Pro Plan -->
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-primary {{ 'bg-primary bg-opacity-10' if user_plan == 'pro' else '' }}">
+                                    <div class="card-header text-center bg-primary">
+                                        <h6 class="mb-0 text-white">Pro Plan</h6>
+                                        <small class="text-white">$10/month</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="list-unstyled mb-0">
+                                            <li><i class="fas fa-check text-success me-2"></i>Unlimited audits</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>10 keywords per audit</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>5 SEO suggestions per audit</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>Export to PDF</li>
+                                            <li><i class="fas fa-times text-danger me-2"></i>No API access</li>
+                                        </ul>
+                                        {% if user_plan == 'pro' %}
+                                        <div class="mt-2">
+                                            <span class="badge bg-primary">Current Plan</span>
+                                        </div>
+                                        {% elif user_plan == 'free' %}
+                                        <div class="mt-2">
+                                            <a href="/upgrade/pro" class="btn btn-primary btn-sm">Upgrade</a>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Premium Plan -->
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-warning {{ 'bg-warning bg-opacity-10' if user_plan == 'premium' else '' }}">
+                                    <div class="card-header text-center bg-warning text-dark">
+                                        <h6 class="mb-0">Premium Plan</h6>
+                                        <small>$20/month</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="list-unstyled mb-0">
+                                            <li><i class="fas fa-check text-success me-2"></i>Unlimited audits</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>15 keywords per audit</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>10 SEO suggestions per audit</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>Export to PDF/CSV</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>API access</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>Priority support</li>
+                                        </ul>
+                                        {% if user_plan == 'premium' %}
+                                        <div class="mt-2">
+                                            <span class="badge bg-warning text-dark">Current Plan</span>
+                                        </div>
+                                        {% else %}
+                                        <div class="mt-2">
+                                            <a href="/upgrade/premium" class="btn btn-warning btn-sm">Upgrade</a>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Plan Management -->
+                        <div class="text-center mt-4">
+                            <h6 class="mb-3">Plan Management</h6>
+                            <div class="btn-group" role="group">
+                                <a href="/plans" class="btn btn-outline-primary">
+                                    <i class="fas fa-eye me-1"></i>View All Plans
+                                </a>
+                                {% if user_plan != 'free' %}
+                                <button class="btn btn-outline-secondary" onclick="manageBilling()">
+                                    <i class="fas fa-credit-card me-1"></i>Manage Billing
+                                </button>
+                                {% endif %}
+                                {% if user_plan != 'premium' %}
+                                <a href="/upgrade/premium" class="btn btn-warning">
+                                    <i class="fas fa-crown me-1"></i>Upgrade to Premium
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-5 py-4 text-center text-muted border-top">
+            <p>&copy; 2025 SEOExtract. Built with Flask, YAKE, and Bootstrap.</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        // Theme toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const themeToggle = document.getElementById('themeToggle');
+            const htmlRoot = document.getElementById('htmlRoot');
+            const bootstrapTheme = document.getElementById('bootstrapTheme');
+            
+            // Load saved theme preference
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            applyTheme(savedTheme);
+            themeToggle.checked = savedTheme === 'dark';
+            
+            // Theme toggle event listener
+            themeToggle.addEventListener('change', function() {
+                const newTheme = this.checked ? 'dark' : 'light';
+                applyTheme(newTheme);
+                localStorage.setItem('theme', newTheme);
+                showToast(`Switched to ${newTheme} mode`, 'success');
+            });
+            
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    htmlRoot.setAttribute('data-bs-theme', 'dark');
+                    bootstrapTheme.href = 'https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css';
+                    document.body.style.backgroundColor = '#1a1a1a';
+                    document.body.style.color = '#ffffff';
+                } else {
+                    htmlRoot.setAttribute('data-bs-theme', 'light');
+                    bootstrapTheme.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
+                    document.body.style.backgroundColor = '#ffffff';
+                    document.body.style.color = '#000000';
+                }
+            }
+        });
+        
+        function manageBilling() {
+            showToast('Billing management would redirect to payment processor', 'info');
+            // In production, this would redirect to Stripe customer portal
+        }
+        
+        function showToast(message, type = 'info') {
+            // Create toast element if it doesn't exist
+            let toastContainer = document.querySelector('.toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+                document.body.appendChild(toastContainer);
+            }
+
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type === 'info' ? 'primary' : type} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+
+            toastContainer.appendChild(toast);
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+
+            // Remove toast after it's hidden
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+        }
+    </script>
+</body>
+</html>

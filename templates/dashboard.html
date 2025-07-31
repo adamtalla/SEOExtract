@@ -29,6 +29,9 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/history">History</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">Settings</a>
+                    </li>
                 </ul>
                 <div class="d-flex">
                     <span class="navbar-text me-3">Welcome, {{ user.email if user else 'Guest' }}</span>
@@ -70,12 +73,12 @@
                         {% elif user_plan == 'pro' %}
                         <h4 class="text-primary">Pro Plan - $10/month</h4>
                         <ul class="list-unstyled">
-                            <li><i class="fas fa-check text-success me-2"></i>10 audits per month</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Unlimited audits</li>
                             <li><i class="fas fa-check text-success me-2"></i>10 keywords per audit</li>
                             <li><i class="fas fa-check text-success me-2"></i>5 SEO suggestions per audit</li>
                         </ul>
                         {% elif user_plan == 'premium' %}
-                        <h4 class="text-warning">Premium Plan - $19/month</h4>
+                        <h4 class="text-warning">Premium Plan - $20/month</h4>
                         <ul class="list-unstyled">
                             <li><i class="fas fa-check text-success me-2"></i>Unlimited audits</li>
                             <li><i class="fas fa-check text-success me-2"></i>15 keywords per audit</li>
@@ -97,11 +100,11 @@
                         <div class="mb-3">
                             <div class="d-flex justify-content-between">
                                 <span>Audits Used</span>
-                                <span><strong>{{ usage.audits_used or 0 }}</strong> / {{ 'Unlimited' if user_plan == 'premium' else (10 if user_plan == 'pro' else 3) }}</span>
+                                <span><strong>{{ usage.audits_used or 0 }}</strong> / {{ 'Unlimited' if user_plan in ['pro', 'premium'] else 3 }}</span>
                             </div>
-                            {% if user_plan != 'premium' %}
+                            {% if user_plan == 'free' %}
                             <div class="progress mt-1">
-                                <div class="progress-bar" style="width: {{ ((usage.audits_used or 0) / (10 if user_plan == 'pro' else 3)) * 100 }}%"></div>
+                                <div class="progress-bar" style="width: {{ ((usage.audits_used or 0) / 3) * 100 }}%"></div>
                             </div>
                             {% endif %}
                         </div>

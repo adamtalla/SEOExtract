@@ -33,7 +33,7 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 # Plan limits configuration
 PLAN_LIMITS = {
     'free': {
-        'audits_per_month': 5,  # Updated to 5 as requested
+        'audits_per_month': 3,  # 3 audits per month for free plan
         'keywords_per_audit': 5,
         'seo_suggestions': 0,
         'export': False,
@@ -555,6 +555,20 @@ def logout():
     session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('index'))
+
+
+@app.route('/settings')
+@login_required
+def settings():
+    """User settings page"""
+    user = get_user_from_session()
+    plan = user.get('plan', 'free')
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    
+    return render_template('settings.html',
+                           user=user,
+                           user_plan=plan,
+                           limits=limits)
 
 
 @app.route('/dashboard')
@@ -1374,9 +1388,9 @@ def stripe_webhook():
             
             # Determine plan from amount or metadata
             amount = session_data.get('amount_total', 0)
-            if amount == 1500:  # $15.00
+            if amount == 1000:  # $10.00
                 plan = 'pro'
-            elif amount == 3000:  # $30.00
+            elif amount == 2000:  # $20.00
                 plan = 'premium'
             else:
                 logging.error(f"Unknown payment amount: {amount}")
