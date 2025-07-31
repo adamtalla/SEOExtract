@@ -401,7 +401,7 @@ def extract_keywords():
 
     # STEP 9: Try to generate SEO suggestions (SAFELY)
     try:
-        if limits['seo_suggestions'] > 0 and keywords:
+        if limits['seo_suggestions'] > 0:
             # Use AI-powered suggestions for premium users, rule-based for others
             from ai_seo_analyzer import AISEOAnalyzer
             
