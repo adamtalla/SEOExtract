@@ -129,9 +129,19 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="text-muted mb-0">Top SEO Keywords:</h6>
-                            <button class="btn btn-outline-primary btn-sm" onclick="copyKeywords()">
-                                <i class="fas fa-copy me-1"></i>Copy All
-                            </button>
+                            <div class="btn-group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="copyKeywords()">
+                                    <i class="fas fa-copy me-1"></i>Copy All
+                                </button>
+                                {% if limits.export %}
+                                <button class="btn btn-outline-success btn-sm" onclick="exportResults('csv')">
+                                    <i class="fas fa-download me-1"></i>Export CSV
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" onclick="exportResults('pdf')">
+                                    <i class="fas fa-file-pdf me-1"></i>Export PDF
+                                </button>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="row" id="keywordsList">
                             {% for keyword in keywords %}
@@ -180,6 +190,32 @@
                     <i class="fas fa-lock me-2"></i>
                     <strong>SEO Suggestions available with Pro and Premium plans.</strong>
                     <a href="/plans" class="btn btn-sm btn-primary ms-2">Upgrade Now</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- API Access Section for Premium Users -->
+        {% if user_plan == 'premium' and keywords %}
+        <div class="row justify-content-center mt-4">
+            <div class="col-lg-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="fas fa-code me-2"></i>API Access
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Your Premium plan includes API access!</strong></p>
+                        <p>Example API call:</p>
+                        <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST {{ request.url_root }}api/extract_keywords \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session={{ request.cookies.get('session', 'your-session-cookie') }}" \
+  -d '{"url": "https://example.com"}'</code></pre>
+                        <button class="btn btn-outline-warning btn-sm" onclick="copyApiExample()">
+                            <i class="fas fa-copy me-1"></i>Copy API Example
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

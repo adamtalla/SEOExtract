@@ -39,7 +39,7 @@ PLAN_LIMITS = {
         'api_access': False
     },
     'pro': {
-        'audits_per_month': 10,
+        'audits_per_month': -1,  # Unlimited
         'keywords_per_audit': 10,
         'seo_suggestions': 5,
         'export': True,
@@ -314,6 +314,11 @@ def extract_keywords():
             ]
             seo_suggestions = suggestions[:limits['seo_suggestions']]
         
+        # Store results in session for export
+        session['last_keywords'] = keywords
+        session['last_url'] = url
+        session['last_suggestions'] = seo_suggestions
+        
         # Increment usage counter
         increment_usage(user['id'], 'audit')
         
@@ -410,6 +415,48 @@ def api_extract_keywords():
     except Exception as e:
         logging.error(f"API error extracting keywords: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/export/<format>')
+@login_required
+def export_results(format):
+    """Export the last analysis results"""
+    user = get_user_from_session()
+    plan = user.get('plan', 'free')
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    
+    if not limits['export']:
+        flash('Export feature requires Pro or Premium plan', 'warning')
+        return redirect(url_for('plans'))
+    
+    # Get last analysis from session
+    last_keywords = session.get('last_keywords', [])
+    last_url = session.get('last_url', '')
+    last_suggestions = session.get('last_suggestions', [])
+    
+    if not last_keywords:
+        flash('No analysis results to export', 'warning')
+        return redirect(url_for('tool'))
+    
+    if format.lower() == 'pdf':
+        # Mock PDF export - in production, use reportlab or similar
+        flash('PDF export feature coming soon!', 'info')
+    elif format.lower() == 'csv':
+        from flask import make_response
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Keyword', 'URL', 'Position'])
+        for i, keyword in enumerate(last_keywords, 1):
+            writer.writerow([keyword, last_url, i])
+        
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = f'attachment; filename=seo_keywords_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.csv'
+        return response
+    
+    return redirect(url_for('tool'))
 
 @app.route('/upgrade/<plan>')
 @login_required

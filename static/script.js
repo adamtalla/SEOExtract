@@ -60,6 +60,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (submitBtn) {
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
                 submitBtn.disabled = true;
+                
+                // Re-enable button after form submission
+                setTimeout(() => {
+                    submitBtn.innerHTML = '<i class="fas fa-search me-2"></i>Extract Keywords';
+                    submitBtn.disabled = false;
+                }, 5000);
             }
         });
     }
@@ -75,10 +81,23 @@ function upgradePlan(planName) {
 // Export functionality (for Pro/Premium users)
 function exportResults(format = 'pdf') {
     showToast(`Exporting results as ${format.toUpperCase()}...`, 'info');
-    // In production, this would generate and download the file
-    setTimeout(() => {
-        showToast(`Export feature coming soon!`, 'info');
-    }, 1000);
+    window.location.href = `/export/${format}`;
+}
+
+// Copy API example
+function copyApiExample() {
+    const apiCode = document.querySelector('pre code').textContent;
+    
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(apiCode).then(() => {
+            showToast('API example copied to clipboard!', 'success');
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            fallbackCopy(apiCode);
+        });
+    } else {
+        fallbackCopy(apiCode);
+    }
 }
 
 // Toast notification function

@@ -19,8 +19,10 @@ def extract_keywords_from_text(text: str, max_keywords: int = 10) -> list:
         kw_extractor = yake.KeywordExtractor(
             lan="en",                    # Language
             n=3,                         # Maximum number of words in keyphrase
-            dedupLim=0.7,               # Deduplication threshold
-            top=max_keywords,           # Number of keywords to extract
+            dedupLim=0.3,               # Lower deduplication threshold for better variety
+            dedupFunc='seqm',           # Use sequence matcher for deduplication
+            windowsSize=1,              # Window size for co-occurrence
+            top=max_keywords * 2,       # Extract more to filter better ones
             features=None
         )
         
@@ -33,11 +35,32 @@ def extract_keywords_from_text(text: str, max_keywords: int = 10) -> list:
         # Return only the keyword phrases (not the scores)
         # YAKE returns tuples of (keyword_phrase, score)
         result = []
+        seen_keywords = set()
+        
         for keyword in keywords:
             if isinstance(keyword, tuple) and len(keyword) >= 2:
-                result.append(keyword[0])  # keyword phrase is first element
+                keyword_text = keyword[0].strip()
+                keyword_lower = keyword_text.lower()
+                
+                # Filter out short keywords and duplicates
+                if (len(keyword_text) >= 3 and 
+                    keyword_lower not in seen_keywords and
+                    not keyword_text.isdigit() and
+                    len(keyword_text.split()) <= 4):  # Max 4 words
+                    
+                    result.append(keyword_text)
+                    seen_keywords.add(keyword_lower)
+                    
+                    if len(result) >= max_keywords:
+                        break
             else:
-                result.append(str(keyword))  # fallback
+                keyword_text = str(keyword).strip()
+                if len(keyword_text) >= 3 and keyword_text.lower() not in seen_keywords:
+                    result.append(keyword_text)
+                    seen_keywords.add(keyword_text.lower())
+                    
+                    if len(result) >= max_keywords:
+                        break
         
         return result
     
