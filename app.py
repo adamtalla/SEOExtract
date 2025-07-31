@@ -32,7 +32,7 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 # Plan limits configuration
 PLAN_LIMITS = {
     'free': {
-        'audits_per_month': 3,
+        'audits_per_month': 5,  # Updated to 5 as requested
         'keywords_per_audit': 5,
         'seo_suggestions': 0,
         'export': False,
@@ -104,12 +104,39 @@ def get_user_from_session():
 
 
 def get_user_usage(user_id):
-    """Get user's current month usage"""
+    """Get user's current month usage from Supabase"""
     current_month = datetime.now().strftime('%Y-%m')
-
-    # Mock usage data for demo - in production, query from Supabase
+    
+    if not user_id or user_id == 'guest':
+        return {'audits_used': 0, 'month': current_month}
+    
+    # Try to get usage from Supabase
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            usage_data = supabase_request('GET', f'user_usage?user_id=eq.{user_id}&month=eq.{current_month}')
+            if usage_data and len(usage_data) > 0:
+                return {
+                    'audits_used': usage_data[0].get('audits_used', 0),
+                    'month': current_month
+                }
+            else:
+                # Create initial usage record for this month
+                initial_usage = {
+                    'user_id': user_id,
+                    'month': current_month,
+                    'audits_used': 0,
+                    'keywords_generated': 0,
+                    'exports_used': 0,
+                    'api_calls_used': 0
+                }
+                supabase_request('POST', 'user_usage', initial_usage)
+                return {'audits_used': 0, 'month': current_month}
+        except Exception as e:
+            logging.error(f"Error getting user usage from Supabase: {str(e)}")
+    
+    # Fallback to session-based tracking (for backwards compatibility)
     return {
-        'audits_used': session.get(f'audits_used_{current_month}', 0),
+        'audits_used': session.get(f'audits_used_{user_id}_{current_month}', 0),
         'month': current_month
     }
 
@@ -119,27 +146,142 @@ def check_usage_limits(user, action='audit'):
     if not user:
         return False, "Please log in to continue"
 
+    user_id = user.get('id', '')
     plan = user.get('plan', 'free')
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    usage = get_user_usage(user['id'])
+    usage = get_user_usage(user_id)
 
     if action == 'audit':
         if limits['audits_per_month'] == -1:  # Unlimited
+            logging.info(f"User {user_id} has unlimited audits ({plan} plan)")
             return True, ""
 
-        if usage['audits_used'] >= limits['audits_per_month']:
-            return False, f"You've reached your monthly limit of {limits['audits_per_month']} audits. Please upgrade your plan."
+        audits_used = usage.get('audits_used', 0)
+        audits_limit = limits['audits_per_month']
+        remaining = audits_limit - audits_used
+        
+        logging.info(f"User {user_id} audit check: {audits_used}/{audits_limit} used, {remaining} remaining")
+        
+        if audits_used >= audits_limit:
+            logging.warning(f"User {user_id} has reached audit limit: {audits_used}/{audits_limit}")
+            return False, f"You've reached your monthly limit of {audits_limit} audits. Please upgrade your plan."
+        
+        # Warning when getting close to limit
+        if remaining <= 1 and remaining > 0:
+            logging.info(f"User {user_id} is close to audit limit: {remaining} remaining")
 
     return True, ""
 
 
 def increment_usage(user_id, action='audit'):
-    """Increment user's usage counter"""
+    """Increment user's usage counter in database"""
+    if not user_id or user_id == 'guest':
+        return
+        
     current_month = datetime.now().strftime('%Y-%m')
+    
+    # Try to update usage in Supabase
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            # Get current usage
+            current_usage = get_user_usage(user_id)
+            new_count = current_usage['audits_used'] + 1
+            
+            # Update the usage record
+            update_data = {}
+            if action == 'audit':
+                update_data['audits_used'] = new_count
+            elif action == 'export':
+                update_data['exports_used'] = current_usage.get('exports_used', 0) + 1
+            elif action == 'api':
+                update_data['api_calls_used'] = current_usage.get('api_calls_used', 0) + 1
+            
+            # Update existing record or create new one
+            existing_usage = supabase_request('GET', f'user_usage?user_id=eq.{user_id}&month=eq.{current_month}')
+            
+            if existing_usage and len(existing_usage) > 0:
+                # Update existing record
+                supabase_request('PATCH', f'user_usage?user_id=eq.{user_id}&month=eq.{current_month}', update_data)
+            else:
+                # Create new record
+                new_usage = {
+                    'user_id': user_id,
+                    'month': current_month,
+                    'audits_used': 1 if action == 'audit' else 0,
+                    'keywords_generated': 0,
+                    'exports_used': 1 if action == 'export' else 0,
+                    'api_calls_used': 1 if action == 'api' else 0
+                }
+                supabase_request('POST', 'user_usage', new_usage)
+            
+            logging.info(f"Updated usage for user {user_id}: {action} count incremented")
+            
+        except Exception as e:
+            logging.error(f"Error updating usage in Supabase: {str(e)}")
+            # Fallback to session-based tracking
+            if action == 'audit':
+                key = f'audits_used_{user_id}_{current_month}'
+                session[key] = session.get(key, 0) + 1
+    else:
+        # Fallback to session-based tracking
+        if action == 'audit':
+            key = f'audits_used_{user_id}_{current_month}'
+            session[key] = session.get(key, 0) + 1
 
-    if action == 'audit':
-        key = f'audits_used_{current_month}'
-        session[key] = session.get(key, 0) + 1
+
+def initialize_new_user(user_id, email, plan='free'):
+    """Initialize a new user with their starting audit allowance"""
+    if not user_id or not email:
+        return False
+        
+    # Don't reinitialize existing users
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            # Check if user profile already exists
+            existing_user = supabase_request('GET', f'user_profiles?id=eq.{user_id}')
+            if existing_user and len(existing_user) > 0:
+                logging.info(f"User {email} already exists, skipping initialization")
+                return True
+                
+            # Create user profile
+            user_profile = {
+                'id': user_id,
+                'email': email,
+                'plan': plan,
+                'subscription_status': 'active' if email == ADMIN_EMAIL else 'inactive',
+                'auto_upgrade': True
+            }
+            
+            profile_result = supabase_request('POST', 'user_profiles', user_profile)
+            
+            if profile_result:
+                logging.info(f"Created user profile for {email} with plan {plan}")
+                
+                # Initialize usage for current month
+                current_month = datetime.now().strftime('%Y-%m')
+                initial_usage = {
+                    'user_id': user_id,
+                    'month': current_month,
+                    'audits_used': 0,
+                    'keywords_generated': 0,
+                    'exports_used': 0,
+                    'api_calls_used': 0
+                }
+                
+                usage_result = supabase_request('POST', 'user_usage', initial_usage)
+                if usage_result:
+                    logging.info(f"Initialized usage tracking for user {email}")
+                
+                return True
+            else:
+                logging.error(f"Failed to create user profile for {email}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Error initializing new user {email}: {str(e)}")
+            return False
+    
+    return True  # Return True for fallback mode
 
 
 def login_required(f):
@@ -206,16 +348,19 @@ def login():
         # For demo purposes, create a mock login
         if email and password:
             # Mock user data
-            session['user_id'] = f"user_{hash(email) % 10000}"
+            user_id = f"user_{hash(email) % 10000}"
+            session['user_id'] = user_id
             session['email'] = email
 
             # Special access for admin user
             if email == ADMIN_EMAIL:
                 session['plan'] = 'premium'  # Give admin premium access
+                initialize_new_user(user_id, email, 'premium')
                 flash('Welcome back, Admin! Premium access granted.',
                       'success')
             else:
                 session['plan'] = 'free'  # Default plan
+                initialize_new_user(user_id, email, 'free')
                 flash('Login successful!', 'success')
 
             return redirect(url_for('dashboard'))
@@ -237,17 +382,21 @@ def register():
         # For demo purposes, create a mock registration
         if name and email and password:
             # Mock user creation
-            session['user_id'] = f"user_{hash(email) % 10000}"
+            user_id = f"user_{hash(email) % 10000}"
+            session['user_id'] = user_id
             session['email'] = email
 
             # Special access for admin user
             if email == ADMIN_EMAIL:
                 session['plan'] = 'premium'  # Give admin premium access
+                initialize_new_user(user_id, email, 'premium')
                 flash('Welcome! Premium access granted for admin account.',
                       'success')
             else:
                 session['plan'] = 'free'
-                flash('Account created successfully!', 'success')
+                initialize_new_user(user_id, email, 'free')
+                flash('Account created successfully! You have 3 free audits to get started.',
+                      'success')
 
             return redirect(url_for('dashboard'))
         else:
