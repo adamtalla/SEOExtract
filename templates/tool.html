@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Keyword Extraction Tool - SEO Keyword Extractor AI</title>
+    <title>SEO Analysis Tool - SEOExtract</title>
     <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
@@ -14,7 +14,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="/">
-                <i class="fas fa-search me-2"></i>SEO Keyword Extractor AI
+                <i class="fas fa-search me-2"></i>SEOExtract
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -35,9 +35,14 @@
                     </li>
                 </ul>
                 <div class="d-flex">
+                    {% if user %}
+                    <span class="navbar-text me-3">{{ user.email }}</span>
                     <a href="/dashboard" class="btn btn-outline-light me-2">Dashboard</a>
+                    <a href="/logout" class="btn btn-outline-light">Logout</a>
+                    {% else %}
                     <a href="/login" class="btn btn-outline-light me-2">Login</a>
-                    <a href="/register" class="btn btn-primary">Create Account</a>
+                    <a href="/register" class="btn btn-primary">Try SEOExtract Free</a>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -47,26 +52,27 @@
         <!-- Header -->
         <div class="text-center mb-5">
             <h1 class="display-4 mb-3">
-                <i class="fas fa-search me-3"></i>SEO Keyword Extractor AI
+                <i class="fas fa-search me-3"></i>SEOExtract
             </h1>
             <p class="lead text-muted">
-                Extract the top 10 SEO keywords from any webpage using advanced AI-powered analysis
+                Extract keywords and get SEO suggestions from any webpage using AI-powered analysis
             </p>
         </div>
 
         <!-- Usage Stats (for logged in users) -->
+        {% if user %}
         <div class="row mb-4">
             <div class="col-12">
                 <div class="alert alert-info">
                     <div class="row text-center">
                         <div class="col-md-3">
-                            <strong>Plan:</strong> Free
+                            <strong>Plan:</strong> {{ user_plan.title() }}
                         </div>
                         <div class="col-md-3">
-                            <strong>Keywords Left:</strong> 5/5
+                            <strong>Audits Used:</strong> {{ usage.audits_used }}/{{ 'Unlimited' if limits.audits_per_month == -1 else limits.audits_per_month }}
                         </div>
                         <div class="col-md-3">
-                            <strong>Links Left:</strong> 3/3
+                            <strong>Keywords per audit:</strong> {{ limits.keywords_per_audit }}
                         </div>
                         <div class="col-md-3">
                             <a href="/plans" class="btn btn-sm btn-primary">Upgrade</a>
@@ -75,6 +81,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Main Form -->
         <div class="row justify-content-center">
@@ -136,6 +143,43 @@
                             {% endfor %}
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- SEO Suggestions Section -->
+        {% if seo_suggestions %}
+        <div class="row justify-content-center mt-4">
+            <div class="col-lg-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-lightbulb me-2"></i>SEO Suggestions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for suggestion in seo_suggestions %}
+                            <div class="col-12 mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    <span>{{ suggestion }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% elif user_plan == 'free' and keywords %}
+        <div class="row justify-content-center mt-4">
+            <div class="col-lg-8">
+                <div class="alert alert-warning">
+                    <i class="fas fa-lock me-2"></i>
+                    <strong>SEO Suggestions available with Pro and Premium plans.</strong>
+                    <a href="/plans" class="btn btn-sm btn-primary ms-2">Upgrade Now</a>
                 </div>
             </div>
         </div>

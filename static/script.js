@@ -1,58 +1,23 @@
-// SEO Keyword Extractor JavaScript functionality
+// SEOExtract JavaScript functionality
 
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('extractForm');
-    const loadingIndicator = document.getElementById('loadingIndicator');
-    const extractBtn = document.getElementById('extractBtn');
-    const urlInput = document.getElementById('url');
-
-    // Handle form submission
-    form.addEventListener('submit', function(e) {
-        // Show loading indicator
-        loadingIndicator.style.display = 'block';
-        extractBtn.disabled = true;
-        extractBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
-        
-        // Scroll to loading indicator
-        loadingIndicator.scrollIntoView({ behavior: 'smooth' });
-    });
-
-    // Auto-format URL input
-    urlInput.addEventListener('blur', function() {
-        let url = this.value.trim();
-        if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-            this.value = 'https://' + url;
-        }
-    });
-
-    // Handle Enter key in URL input
-    urlInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            form.submit();
-        }
-    });
-});
-
-// Copy keywords to clipboard
+// Copy keywords functionality
 function copyKeywords() {
-    const keywords = [];
-    const keywordElements = document.querySelectorAll('.keyword-text');
-    
-    keywordElements.forEach(function(element) {
-        keywords.push(element.textContent);
-    });
-    
-    const keywordText = keywords.join(', ');
-    
-    // Use the modern clipboard API if available
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(keywordText).then(function() {
-            showCopySuccess();
-        }).catch(function() {
-            fallbackCopy(keywordText);
+    const keywords = document.querySelectorAll('#keywordsList .badge');
+    const keywordTexts = Array.from(keywords).map(badge => 
+        badge.textContent.replace(/^\d+\.\s*/, '')
+    );
+
+    const textToCopy = keywordTexts.join('\n');
+
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showToast('Keywords copied to clipboard!', 'success');
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            fallbackCopy(textToCopy);
         });
     } else {
-        fallbackCopy(keywordText);
+        fallbackCopy(textToCopy);
     }
 }
 
@@ -60,62 +25,79 @@ function copyKeywords() {
 function fallbackCopy(text) {
     const textArea = document.createElement('textarea');
     textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.opacity = '0';
     document.body.appendChild(textArea);
-    textArea.focus();
     textArea.select();
-    
+
     try {
         document.execCommand('copy');
-        showCopySuccess();
+        showToast('Keywords copied to clipboard!', 'success');
     } catch (err) {
-        console.error('Copy failed:', err);
-        showCopyError();
+        console.error('Fallback copy failed: ', err);
+        showToast('Copy failed. Please copy manually.', 'error');
     }
-    
+
     document.body.removeChild(textArea);
 }
 
-// Show copy success message
-function showCopySuccess() {
-    const button = event.target;
-    const originalText = button.innerHTML;
-    
-    button.innerHTML = '<i class="fas fa-check me-2"></i>Copied!';
-    button.classList.remove('btn-outline-secondary');
-    button.classList.add('btn-success');
-    
-    setTimeout(function() {
-        button.innerHTML = originalText;
-        button.classList.remove('btn-success');
-        button.classList.add('btn-outline-secondary');
-    }, 2000);
+// Show toast notification
+function showToast(message, type = 'info') {
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} position-fixed`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close ms-2" onclick="this.parentElement.remove()"></button>
+    `;
+
+    document.body.appendChild(toast);
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 3000);
 }
 
-// Show copy error message
-function showCopyError() {
-    const button = event.target;
-    const originalText = button.innerHTML;
-    
-    button.innerHTML = '<i class="fas fa-times me-2"></i>Copy Failed';
-    button.classList.remove('btn-outline-secondary');
-    button.classList.add('btn-danger');
-    
-    setTimeout(function() {
-        button.innerHTML = originalText;
-        button.classList.remove('btn-danger');
-        button.classList.add('btn-outline-secondary');
-    }, 2000);
-}
-
-// Auto-dismiss alerts after 5 seconds
+// Form submission handling
 document.addEventListener('DOMContentLoaded', function() {
-    const alerts = document.querySelectorAll('.alert');
-    alerts.forEach(function(alert) {
-        setTimeout(function() {
-            const bsAlert = new bootstrap.Alert(alert);
-            bsAlert.close();
-        }, 5000);
-    });
+    const extractForm = document.getElementById('extractForm');
+    const extractBtn = document.getElementById('extractBtn');
+
+    if (extractForm && extractBtn) {
+        extractForm.addEventListener('submit', function() {
+            // Show loading state
+            extractBtn.disabled = true;
+            extractBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
+        });
+    }
+
+    // Quick demo form handling
+    const quickDemo = document.getElementById('quickDemo');
+    if (quickDemo) {
+        quickDemo.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const url = this.querySelector('input[type="url"]').value;
+            if (url) {
+                window.location.href = `/tool?demo_url=${encodeURIComponent(url)}`;
+            }
+        });
+    }
 });
+
+// Plan upgrade handling
+function upgradePlan(planName) {
+    if (confirm(`Upgrade to ${planName} plan?`)) {
+        window.location.href = `/upgrade/${planName.toLowerCase()}`;
+    }
+}
+
+// Export functionality (for Pro/Premium users)
+function exportResults(format = 'pdf') {
+    showToast(`Exporting results as ${format.toUpperCase()}...`, 'info');
+    // In production, this would generate and download the file
+    setTimeout(() => {
+        showToast(`Export feature coming soon!`, 'info');
+    }, 1000);
+}
