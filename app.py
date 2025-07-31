@@ -315,7 +315,6 @@ def extract_keywords():
             audit_results = audit_results[:limits['seo_suggestions']]
             
             # Convert audit results to suggestions format for backward compatibility
-            seo_suggestions = []
             for result in audit_results:
                 seo_suggestions.append({
                     'type': result['type'],
