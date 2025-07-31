@@ -474,15 +474,24 @@ def dashboard():
     plan = user.get('plan', 'free')
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
-    # Get user's API key if they have API access
+    # Get user's API key if they have API access (Premium only)
     api_key = None
-    if limits['api_access'] and SUPABASE_URL and SUPABASE_KEY:
+    if limits['api_access'] and plan == 'premium' and SUPABASE_URL and SUPABASE_KEY:
         try:
             user_data = supabase_request('GET', f'user_profiles?id=eq.{user["id"]}&select=api_key')
             if user_data and len(user_data) > 0:
                 api_key = user_data[0].get('api_key')
+                # Generate API key if user doesn't have one
+                if not api_key:
+                    api_key = generate_api_key()
+                    update_data = {
+                        'api_key': api_key,
+                        'updated_at': datetime.now().isoformat()
+                    }
+                    supabase_request('PATCH', f'user_profiles?id=eq.{user["id"]}', update_data)
+                    logging.info(f"Generated new API key for Premium user {user['email']}")
         except Exception as e:
-            logging.error(f"Error getting API key: {str(e)}")
+            logging.error(f"Error getting/generating API key: {str(e)}")
 
     # Mock recent analyses data
     recent_analyses = []

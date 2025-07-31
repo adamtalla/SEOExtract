@@ -140,7 +140,7 @@ function copyApiExample() {
 
 function toggleApiKey() {
     const input = document.getElementById('apiKeyInput');
-    const icon = document.getElementById('apiKeyToggle');
+    const icon = document.getElementById('apiKeyIcon');
 
     if (input.type === 'password') {
         input.type = 'text';
