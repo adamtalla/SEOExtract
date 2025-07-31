@@ -1,4 +1,3 @@
-
 import os
 import logging
 from datetime import datetime, timedelta
@@ -15,7 +14,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Create the Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+app.secret_key = os.environ.get("SECRET_KEY",
+                                "dev-secret-key-change-in-production")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Enable CORS for API integration
@@ -57,21 +57,19 @@ PLAN_LIMITS = {
 # Special access for admin user
 ADMIN_EMAIL = "tall3aadam@gmail.com"
 
+
 def supabase_request(method, endpoint, data=None, auth_token=None):
     """Make a request to Supabase"""
     if not SUPABASE_URL or not SUPABASE_KEY:
         return None
-    
-    headers = {
-        'apikey': SUPABASE_KEY,
-        'Content-Type': 'application/json'
-    }
-    
+
+    headers = {'apikey': SUPABASE_KEY, 'Content-Type': 'application/json'}
+
     if auth_token:
         headers['Authorization'] = f'Bearer {auth_token}'
-    
+
     url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
-    
+
     try:
         if method == 'GET':
             response = requests.get(url, headers=headers)
@@ -81,15 +79,18 @@ def supabase_request(method, endpoint, data=None, auth_token=None):
             response = requests.patch(url, headers=headers, json=data)
         else:
             return None
-        
+
         if response.status_code in [200, 201]:
             return response.json()
         else:
-            logging.error(f"Supabase request failed: {response.status_code} - {response.text}")
+            logging.error(
+                f"Supabase request failed: {response.status_code} - {response.text}"
+            )
             return None
     except Exception as e:
         logging.error(f"Supabase request error: {str(e)}")
         return None
+
 
 def get_user_from_session():
     """Get user data from session"""
@@ -101,56 +102,64 @@ def get_user_from_session():
         }
     return None
 
+
 def get_user_usage(user_id):
     """Get user's current month usage"""
     current_month = datetime.now().strftime('%Y-%m')
-    
+
     # Mock usage data for demo - in production, query from Supabase
     return {
         'audits_used': session.get(f'audits_used_{current_month}', 0),
         'month': current_month
     }
 
+
 def check_usage_limits(user, action='audit'):
     """Check if user can perform action based on their plan limits"""
     if not user:
         return False, "Please log in to continue"
-    
+
     plan = user.get('plan', 'free')
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
     usage = get_user_usage(user['id'])
-    
+
     if action == 'audit':
         if limits['audits_per_month'] == -1:  # Unlimited
             return True, ""
-        
+
         if usage['audits_used'] >= limits['audits_per_month']:
             return False, f"You've reached your monthly limit of {limits['audits_per_month']} audits. Please upgrade your plan."
-    
+
     return True, ""
+
 
 def increment_usage(user_id, action='audit'):
     """Increment user's usage counter"""
     current_month = datetime.now().strftime('%Y-%m')
-    
+
     if action == 'audit':
         key = f'audits_used_{current_month}'
         session[key] = session.get(key, 0) + 1
 
+
 def login_required(f):
     """Decorator to require login for certain routes"""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             flash('Please log in to access this page.', 'warning')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
+
     return decorated_function
+
 
 @app.route('/')
 def index():
     """Landing page with hero section"""
     return render_template('index.html')
+
 
 @app.route('/tool')
 @login_required
@@ -160,23 +169,31 @@ def tool():
     usage = get_user_usage(user['id']) if user else {}
     plan = user.get('plan', 'free') if user else 'free'
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    
-    return render_template('tool.html', user=user, usage=usage, limits=limits, user_plan=plan)
+
+    return render_template('tool.html',
+                           user=user,
+                           usage=usage,
+                           limits=limits,
+                           user_plan=plan)
+
 
 @app.route('/plans')
 def plans():
     """Pricing plans page"""
     return render_template('plans.html')
 
+
 @app.route('/faq')
 def faq():
     """FAQ page"""
     return render_template('faq.html')
 
+
 @app.route('/about')
 def about():
     """About page"""
     return render_template('about.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -184,27 +201,29 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        
+
         # In production, authenticate with Supabase
         # For demo purposes, create a mock login
         if email and password:
             # Mock user data
             session['user_id'] = f"user_{hash(email) % 10000}"
             session['email'] = email
-            
+
             # Special access for admin user
             if email == ADMIN_EMAIL:
                 session['plan'] = 'premium'  # Give admin premium access
-                flash('Welcome back, Admin! Premium access granted.', 'success')
+                flash('Welcome back, Admin! Premium access granted.',
+                      'success')
             else:
                 session['plan'] = 'free'  # Default plan
                 flash('Login successful!', 'success')
-            
+
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid email or password', 'danger')
-    
+
     return render_template('login.html')
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -213,27 +232,29 @@ def register():
         name = request.form.get('name')
         email = request.form.get('email')
         password = request.form.get('password')
-        
+
         # In production, create user in Supabase
         # For demo purposes, create a mock registration
         if name and email and password:
             # Mock user creation
             session['user_id'] = f"user_{hash(email) % 10000}"
             session['email'] = email
-            
+
             # Special access for admin user
             if email == ADMIN_EMAIL:
                 session['plan'] = 'premium'  # Give admin premium access
-                flash('Welcome! Premium access granted for admin account.', 'success')
+                flash('Welcome! Premium access granted for admin account.',
+                      'success')
             else:
                 session['plan'] = 'free'
                 flash('Account created successfully!', 'success')
-            
+
             return redirect(url_for('dashboard'))
         else:
             flash('Please fill in all fields', 'danger')
-    
+
     return render_template('register.html')
+
 
 @app.route('/logout')
 def logout():
@@ -242,6 +263,7 @@ def logout():
     flash('You have been logged out.', 'info')
     return redirect(url_for('index'))
 
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -249,127 +271,251 @@ def dashboard():
     user = get_user_from_session()
     usage = get_user_usage(user['id'])
     plan = user.get('plan', 'free')
-    
+
     # Mock recent analyses data
     recent_analyses = []
-    
-    return render_template('dashboard.html', 
-                         user=user, 
-                         usage=usage, 
-                         user_plan=plan,
-                         recent_analyses=recent_analyses)
+
+    return render_template('dashboard.html',
+                           user=user,
+                           usage=usage,
+                           user_plan=plan,
+                           recent_analyses=recent_analyses)
+
 
 @app.route('/extract', methods=['POST'])
 @login_required
 def extract_keywords():
     """Extract keywords from URL - handles both form and JSON requests"""
+
+    # STEP 1: Initialize EVERYTHING at the very top
+    url = ''
+    keywords = []
+    seo_suggestions = []
+    audit_results = []
+    seo_data = {}
+    user = None
+    plan = 'free'
+    limits = PLAN_LIMITS['free']
+    error_message = ''
+
+    # STEP 2: Set up basic user info
     try:
         user = get_user_from_session()
-        
-        # Check usage limits
-        can_use, error_msg = check_usage_limits(user, 'audit')
+        if user:
+            plan = user.get('plan', 'free')
+            limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    except Exception as e:
+        logging.error(f"Error getting user session: {str(e)}")
+        user = {'id': 'guest', 'plan': 'free'}
+        plan = 'free'
+        limits = PLAN_LIMITS['free']
+
+    # STEP 3: Get URL from request
+    try:
+        if request.is_json:
+            data = request.get_json() or {}
+            url = data.get('url', '')
+        else:
+            url = request.form.get('url', '')
+    except Exception as e:
+        logging.error(f"Error getting URL from request: {str(e)}")
+        url = ''
+
+    # STEP 4: Basic validation
+    if not url:
+        error_message = 'URL is required'
+        if request.is_json:
+            return jsonify({'error': error_message}), 400
+        flash(error_message, 'danger')
+        return render_template('tool.html',
+                               error=error_message,
+                               url=url,
+                               keywords=keywords,
+                               seo_suggestions=seo_suggestions,
+                               audit_results=audit_results,
+                               seo_data=seo_data,
+                               user=user,
+                               usage={
+                                   'audits_used': 0,
+                                   'month': ''
+                               },
+                               limits=limits,
+                               user_plan=plan)
+
+    # STEP 5: Check usage limits
+    try:
+        can_use, limit_error = check_usage_limits(user, 'audit')
         if not can_use:
             if request.is_json:
-                return jsonify({'error': error_msg}), 403
-            flash(error_msg, 'warning')
+                return jsonify({'error': limit_error}), 403
+            flash(limit_error, 'warning')
             return redirect(url_for('plans'))
-        
-        # Handle both form data and JSON data
-        if request.is_json:
-            data = request.get_json()
-            url = data.get('url')
-        else:
-            url = request.form.get('url')
-        
-        if not url:
-            return jsonify({'error': 'URL is required'}), 400
-        
-        # Add protocol if missing
+    except Exception as e:
+        logging.error(f"Error checking usage limits: {str(e)}")
+        # Continue anyway for basic functionality
+
+    # STEP 6: Fix URL format
+    try:
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
-        
-        # Extract keywords and SEO metadata
+    except Exception as e:
+        logging.error(f"Error fixing URL format: {str(e)}")
+
+    # STEP 7: Try to extract keywords (SAFELY)
+    try:
+        # Import here to avoid import errors affecting the whole route
+        from keyword_extractor import extract_keywords_from_url
+
+        # Try keyword extraction
+        extracted_keywords = extract_keywords_from_url(
+            url, limits['keywords_per_audit'])
+
+        # Ensure we got a list
+        if isinstance(extracted_keywords, list):
+            keywords = extracted_keywords
+        else:
+            keywords = []
+            logging.warning(
+                f"extract_keywords_from_url returned non-list: {type(extracted_keywords)}"
+            )
+
+    except ImportError as e:
+        logging.error(f"Import error for keyword_extractor: {str(e)}")
+        keywords = []
+        error_message = "Keyword extraction service unavailable"
+    except Exception as e:
+        logging.error(f"Error extracting keywords: {str(e)}")
+        keywords = []
+        error_message = f"Could not analyze website: {str(e)}"
+
+    # STEP 8: Try to get SEO data (SAFELY)
+    try:
         from web_scraper import get_seo_metadata
-        from seo_analyzer import generate_seo_suggestions
-        from seo_audit import SEOAuditor
-        
-        all_keywords = extract_keywords_from_url(url)
-        seo_data = get_seo_metadata(url)
-        
-        # Apply plan limits
-        plan = user.get('plan', 'free')
-        limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-        keywords = all_keywords[:limits['keywords_per_audit']]
-        
-        # Generate comprehensive SEO audit
-        seo_suggestions = []
-        audit_results = []
-        
-        if limits['seo_suggestions'] > 0:
-            # Create comprehensive SEO audit
+        seo_data = get_seo_metadata(url) or {}
+    except ImportError as e:
+        logging.error(f"Import error for web_scraper: {str(e)}")
+        seo_data = {}
+    except Exception as e:
+        logging.error(f"Error getting SEO metadata: {str(e)}")
+        seo_data = {}
+
+    # STEP 9: Try to generate SEO suggestions (SAFELY)
+    try:
+        if limits['seo_suggestions'] > 0 and keywords:
+            from seo_audit import SEOAuditor
             auditor = SEOAuditor()
-            audit_results = auditor.analyze_page(seo_data, keywords, seo_data.get('content_text', ''))
-            
-            # Limit results based on plan
+            audit_results = auditor.analyze_page(
+                seo_data, keywords, seo_data.get('content_text', ''))
+
+            # Ensure audit_results is a list
+            if not isinstance(audit_results, list):
+                audit_results = []
+
+            # Limit results and convert to suggestions
             audit_results = audit_results[:limits['seo_suggestions']]
-            
-            # Convert audit results to suggestions format for backward compatibility
-            seo_suggestions = []
+
             for result in audit_results:
-                seo_suggestions.append({
-                    'type': result['type'],
-                    'priority': result['priority'],
-                    'suggestion': f"{result['issue']}: {result['recommendation']}"
-                })
-        
-        # Store results in session for export
+                if isinstance(result, dict):
+                    seo_suggestions.append({
+                        'type':
+                        result.get('type', 'General'),
+                        'priority':
+                        result.get('priority', 'Medium'),
+                        'suggestion':
+                        f"{result.get('issue', 'Issue')}: {result.get('recommendation', 'No recommendation')}"
+                    })
+    except ImportError as e:
+        logging.error(f"Import error for seo_audit: {str(e)}")
+        audit_results = []
+        seo_suggestions = []
+    except Exception as e:
+        logging.error(f"Error generating SEO suggestions: {str(e)}")
+        audit_results = []
+        seo_suggestions = []
+
+    # STEP 10: Store results in session (SAFELY)
+    try:
         session['last_keywords'] = keywords
         session['last_url'] = url
         session['last_suggestions'] = seo_suggestions
         session['last_audit_results'] = audit_results
         session['last_seo_data'] = seo_data
-        
-        # Increment usage counter
+
+        # Increment usage
         increment_usage(user['id'], 'audit')
-        
-        # Return JSON response for API calls
+    except Exception as e:
+        logging.error(f"Error storing session data: {str(e)}")
+
+    # STEP 11: Prepare response data
+    try:
+        usage = get_user_usage(user['id']) if user and user.get('id') else {
+            'audits_used': 0,
+            'month': ''
+        }
+    except Exception as e:
+        logging.error(f"Error getting usage: {str(e)}")
+        usage = {'audits_used': 0, 'month': ''}
+
+    # STEP 12: Return response
+    try:
         if request.is_json:
             return jsonify({
-                'keywords': keywords, 
-                'url': url,
-                'seo_suggestions': seo_suggestions,
-                'audit_results': audit_results,
-                'seo_data': seo_data,
-                'plan': plan
+                'keywords':
+                keywords,
+                'url':
+                url,
+                'seo_suggestions':
+                seo_suggestions,
+                'audit_results':
+                audit_results,
+                'seo_data':
+                seo_data,
+                'plan':
+                plan,
+                'success':
+                len(keywords) > 0 or len(audit_results) > 0
             })
-        
-        # Return HTML response for form submissions
-        return render_template('tool.html', 
-                             keywords=keywords, 
-                             url=url,
-                             seo_suggestions=seo_suggestions,
-                             audit_results=audit_results,
-                             seo_data=seo_data,
-                             user=user,
-                             usage=get_user_usage(user['id']),
-                             limits=limits,
-                             user_plan=plan)
-    
+
+        # HTML response
+        return render_template('tool.html',
+                               keywords=keywords,
+                               url=url,
+                               seo_suggestions=seo_suggestions,
+                               audit_results=audit_results,
+                               seo_data=seo_data,
+                               user=user,
+                               usage=usage,
+                               limits=limits,
+                               user_plan=plan,
+                               error=error_message if error_message else None)
+
     except Exception as e:
-        logging.error(f"Error extracting keywords: {str(e)}")
-        error_message = str(e)
-        
+        logging.error(f"Error rendering response: {str(e)}")
+        # Final fallback
         if request.is_json:
-            return jsonify({'error': error_message}), 500
-        
-        flash(f"Error analyzing website: {error_message}", 'danger')
-        return render_template('tool.html', 
-                             error=error_message, 
-                             url=url if 'url' in locals() else '',
-                             user=user,
-                             usage=get_user_usage(user['id']),
-                             limits=PLAN_LIMITS.get(user.get('plan', 'free'), PLAN_LIMITS['free']),
-                             user_plan=user.get('plan', 'free'))
+            return jsonify({
+                'error': 'Internal server error',
+                'keywords': [],
+                'url': url
+            }), 500
+
+        flash('An error occurred while processing your request.', 'danger')
+        return render_template(
+            'tool.html',
+            error='An error occurred while processing your request.',
+            url=url,
+            keywords=[],
+            seo_suggestions=[],
+            audit_results=[],
+            seo_data={},
+            user=user or {'plan': 'free'},
+            usage={
+                'audits_used': 0,
+                'month': ''
+            },
+            limits=PLAN_LIMITS['free'],
+            user_plan='free')
+
 
 @app.route('/api/extract_keywords', methods=['POST'])
 @login_required
@@ -379,55 +525,67 @@ def api_extract_keywords():
         user = get_user_from_session()
         plan = user.get('plan', 'free')
         limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-        
+
         # Check API access
         if not limits['api_access']:
             return jsonify({'error': 'API access requires Premium plan'}), 403
-        
+
         # Check usage limits
         can_use, error_msg = check_usage_limits(user, 'audit')
         if not can_use:
             return jsonify({'error': error_msg}), 403
-        
+
         data = request.get_json()
         if not data or 'url' not in data:
             return jsonify({'error': 'URL is required in JSON body'}), 400
-        
+
         url = data['url']
-        
+
         # Add protocol if missing
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
-        
+
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
-        from seo_analyzer import generate_seo_suggestions
-        
+        from seo_audit import SEOAuditor
+
         all_keywords = extract_keywords_from_url(url)
         seo_data = get_seo_metadata(url)
         keywords = all_keywords[:limits['keywords_per_audit']]
-        
+
         # Generate SEO suggestions
         seo_suggestions = []
         if limits['seo_suggestions'] > 0:
-            target_keywords = keywords[:3]  # Use top 3 keywords as targets
-            all_suggestions = generate_seo_suggestions(seo_data, target_keywords)
-            seo_suggestions = all_suggestions[:limits['seo_suggestions']]
-        
+            auditor = SEOAuditor()
+            audit_results = auditor.analyze_page(
+                seo_data, keywords, seo_data.get('content_text', ''))
+
+            # Convert to suggestions format and limit
+            for result in audit_results[:limits['seo_suggestions']]:
+                seo_suggestions.append({
+                    'type':
+                    result['type'],
+                    'priority':
+                    result['priority'],
+                    'suggestion':
+                    f"{result['issue']}: {result['recommendation']}"
+                })
+
         # Increment usage
         increment_usage(user['id'], 'audit')
-        
+
         return jsonify({
-            'keywords': keywords, 
+            'keywords': keywords,
             'url': url,
             'seo_suggestions': seo_suggestions,
             'plan': plan,
             'usage': get_user_usage(user['id'])
         })
-    
+
     except Exception as e:
         logging.error(f"API error extracting keywords: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/export/<format>')
 @login_required
@@ -436,22 +594,22 @@ def export_results(format):
     user = get_user_from_session()
     plan = user.get('plan', 'free')
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    
+
     if not limits['export']:
         flash('Export feature requires Pro or Premium plan', 'warning')
         return redirect(url_for('plans'))
-    
+
     # Get last analysis from session
     last_keywords = session.get('last_keywords', [])
     last_url = session.get('last_url', '')
     last_suggestions = session.get('last_suggestions', [])
     last_audit_results = session.get('last_audit_results', [])
     last_seo_data = session.get('last_seo_data', {})
-    
+
     if not last_keywords and not last_audit_results:
         flash('No analysis results to export', 'warning')
         return redirect(url_for('tool'))
-    
+
     if format.lower() == 'pdf':
         # Mock PDF export - in production, use reportlab or similar
         flash('PDF export feature coming soon!', 'info')
@@ -459,17 +617,21 @@ def export_results(format):
         from flask import make_response
         import csv
         import io
-        
+
         output = io.StringIO()
         writer = csv.writer(output)
-        
+
         # Export comprehensive data
-        writer.writerow(['Section', 'Type', 'Priority', 'Issue', 'Description', 'Impact', 'Recommendation'])
-        
+        writer.writerow([
+            'Section', 'Type', 'Priority', 'Issue', 'Description', 'Impact',
+            'Recommendation'
+        ])
+
         # Add keywords
         for i, keyword in enumerate(last_keywords, 1):
-            writer.writerow(['Keywords', 'Keyword', f'Position {i}', keyword, '', '', ''])
-        
+            writer.writerow(
+                ['Keywords', 'Keyword', f'Position {i}', keyword, '', '', ''])
+
         # Add audit results
         for result in last_audit_results:
             writer.writerow([
@@ -481,39 +643,54 @@ def export_results(format):
                 result.get('impact', ''),
                 result.get('recommendation', '')
             ])
-        
+
         # Add SEO metadata
         if last_seo_data:
-            writer.writerow(['Metadata', 'Title', '', last_seo_data.get('title', ''), '', '', ''])
-            writer.writerow(['Metadata', 'Description', '', last_seo_data.get('description', ''), '', '', ''])
-            writer.writerow(['Metadata', 'Page Speed', '', str(last_seo_data.get('page_speed_score', 0)), '', '', ''])
-            writer.writerow(['Metadata', 'Mobile Friendly', '', str(last_seo_data.get('mobile_friendly', False)), '', '', ''])
-        
+            writer.writerow([
+                'Metadata', 'Title', '',
+                last_seo_data.get('title', ''), '', '', ''
+            ])
+            writer.writerow([
+                'Metadata', 'Description', '',
+                last_seo_data.get('description', ''), '', '', ''
+            ])
+            writer.writerow([
+                'Metadata', 'Page Speed', '',
+                str(last_seo_data.get('page_speed_score', 0)), '', '', ''
+            ])
+            writer.writerow([
+                'Metadata', 'Mobile Friendly', '',
+                str(last_seo_data.get('mobile_friendly', False)), '', '', ''
+            ])
+
         response = make_response(output.getvalue())
         response.headers['Content-Type'] = 'text/csv'
-        response.headers['Content-Disposition'] = f'attachment; filename=seo_audit_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.csv'
+        response.headers[
+            'Content-Disposition'] = f'attachment; filename=seo_audit_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.csv'
         return response
     elif format.lower() == 'report':
         # Export detailed text report
         from seo_audit import SEOAuditor
         from flask import make_response
-        
+
         auditor = SEOAuditor()
         report = auditor.format_audit_report(last_audit_results)
-        
+
         response = make_response(report)
         response.headers['Content-Type'] = 'text/plain'
-        response.headers['Content-Disposition'] = f'attachment; filename=seo_audit_report_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.txt'
+        response.headers[
+            'Content-Disposition'] = f'attachment; filename=seo_audit_report_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.txt'
         return response
-    
+
     return redirect(url_for('tool'))
+
 
 @app.route('/upgrade/<plan>')
 @login_required
 def upgrade_plan(plan):
     """Upgrade user plan (would integrate with Stripe in production)"""
     user = get_user_from_session()
-    
+
     if plan in ['pro', 'premium']:
         # In production, redirect to Stripe Checkout
         # For demo, just update the session
@@ -521,8 +698,9 @@ def upgrade_plan(plan):
         flash(f'Successfully upgraded to {plan.title()} plan!', 'success')
     else:
         flash('Invalid plan selected', 'danger')
-    
+
     return redirect(url_for('dashboard'))
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
