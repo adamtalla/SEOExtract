@@ -318,72 +318,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script>
-        // Theme toggle functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const themeToggle = document.getElementById('themeToggle');
-            const htmlRoot = document.getElementById('htmlRoot');
-            const bootstrapTheme = document.getElementById('bootstrapTheme');
-            
-            // Load saved theme preference
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            applyTheme(savedTheme);
-            themeToggle.checked = savedTheme === 'dark';
-            
-            // Theme toggle event listener
-            themeToggle.addEventListener('change', function() {
-                const newTheme = this.checked ? 'dark' : 'light';
-                applyTheme(newTheme);
-                localStorage.setItem('theme', newTheme);
-                showToast(`Switched to ${newTheme} mode`, 'success');
-            });
-            
-            function applyTheme(theme) {
-                if (theme === 'dark') {
-                    htmlRoot.setAttribute('data-bs-theme', 'dark');
-                    bootstrapTheme.href = 'https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css';
-                    document.body.style.backgroundColor = '#1a1a1a';
-                    document.body.style.color = '#ffffff';
-                } else {
-                    htmlRoot.setAttribute('data-bs-theme', 'light');
-                    bootstrapTheme.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
-                    document.body.style.backgroundColor = '#ffffff';
-                    document.body.style.color = '#000000';
-                }
-            }
-        });
-        
         function manageBilling() {
             showToast('Billing management would redirect to payment processor', 'info');
             // In production, this would redirect to Stripe customer portal
-        }
-        
-        function showToast(message, type = 'info') {
-            // Create toast element if it doesn't exist
-            let toastContainer = document.querySelector('.toast-container');
-            if (!toastContainer) {
-                toastContainer = document.createElement('div');
-                toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
-                document.body.appendChild(toastContainer);
-            }
-
-            const toast = document.createElement('div');
-            toast.className = `toast align-items-center text-white bg-${type === 'info' ? 'primary' : type} border-0`;
-            toast.setAttribute('role', 'alert');
-            toast.innerHTML = `
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            `;
-
-            toastContainer.appendChild(toast);
-            const bsToast = new bootstrap.Toast(toast);
-            bsToast.show();
-
-            // Remove toast after it's hidden
-            toast.addEventListener('hidden.bs.toast', () => {
-                toast.remove();
-            });
         }
     </script>
 </body>
