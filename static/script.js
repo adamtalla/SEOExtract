@@ -257,15 +257,46 @@ function applyTheme(theme) {
         if (bootstrapTheme) {
             bootstrapTheme.href = 'https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css';
         }
-        document.body.style.backgroundColor = '#1a1a1a';
-        document.body.style.color = '#ffffff';
+        document.body.style.backgroundColor = '#0d1117';
+        document.body.style.color = '#e6edf3';
+        
+        // Update navbar and cards for dark mode
+        const navbar = document.querySelector('.navbar');
+        if (navbar) {
+            navbar.classList.remove('navbar-light', 'bg-light');
+            navbar.classList.add('navbar-dark', 'bg-dark');
+        }
+        
+        // Update all cards for dark mode
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            card.style.backgroundColor = '#161b22';
+            card.style.borderColor = '#30363d';
+            card.style.color = '#e6edf3';
+        });
+        
     } else {
         htmlRoot.setAttribute('data-bs-theme', 'light');
         if (bootstrapTheme) {
             bootstrapTheme.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
         }
-        document.body.style.backgroundColor = '#ffffff';
-        document.body.style.color = '#000000';
+        document.body.style.backgroundColor = '#fefefe';
+        document.body.style.color = '#2c3e50';
+        
+        // Update navbar for light mode
+        const navbar = document.querySelector('.navbar');
+        if (navbar) {
+            navbar.classList.remove('navbar-dark', 'bg-dark');
+            navbar.classList.add('navbar-light', 'bg-light');
+        }
+        
+        // Update all cards for light mode
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            card.style.backgroundColor = '#ffffff';
+            card.style.borderColor = '#e9ecef';
+            card.style.color = '#2c3e50';
+        });
     }
 }
 
