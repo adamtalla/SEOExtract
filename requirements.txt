@@ -5,3 +5,5 @@ yake
 requests
 gunicorn
 werkzeug
+beautifulsoup4
+beautifulsoup4

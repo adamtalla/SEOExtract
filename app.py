@@ -288,8 +288,12 @@ def extract_keywords():
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        # Extract keywords
+        # Extract keywords and SEO metadata
+        from web_scraper import get_seo_metadata
+        from seo_analyzer import generate_seo_suggestions
+        
         all_keywords = extract_keywords_from_url(url)
+        seo_data = get_seo_metadata(url)
         
         # Apply plan limits
         plan = user.get('plan', 'free')
@@ -299,20 +303,10 @@ def extract_keywords():
         # Generate SEO suggestions if plan allows
         seo_suggestions = []
         if limits['seo_suggestions'] > 0:
-            # Mock SEO suggestions - in production, use AI to generate these
-            suggestions = [
-                "Include target keywords in your page title",
-                "Add meta description with primary keywords",
-                "Use header tags (H1, H2) to structure content",
-                "Optimize images with alt text",
-                "Improve page loading speed",
-                "Add internal links to related content",
-                "Create keyword-rich URL slugs",
-                "Write compelling meta descriptions",
-                "Use schema markup for better visibility",
-                "Optimize for mobile responsiveness"
-            ]
-            seo_suggestions = suggestions[:limits['seo_suggestions']]
+            # Use extracted keywords as target keywords for analysis
+            target_keywords = keywords[:3]  # Use top 3 keywords as targets
+            all_suggestions = generate_seo_suggestions(seo_data, target_keywords)
+            seo_suggestions = all_suggestions[:limits['seo_suggestions']]
         
         # Store results in session for export
         session['last_keywords'] = keywords
@@ -385,21 +379,20 @@ def api_extract_keywords():
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        # Extract keywords
+        # Extract keywords and SEO metadata
+        from web_scraper import get_seo_metadata
+        from seo_analyzer import generate_seo_suggestions
+        
         all_keywords = extract_keywords_from_url(url)
+        seo_data = get_seo_metadata(url)
         keywords = all_keywords[:limits['keywords_per_audit']]
         
         # Generate SEO suggestions
         seo_suggestions = []
         if limits['seo_suggestions'] > 0:
-            suggestions = [
-                "Include target keywords in your page title",
-                "Add meta description with primary keywords",
-                "Use header tags (H1, H2) to structure content",
-                "Optimize images with alt text",
-                "Improve page loading speed"
-            ]
-            seo_suggestions = suggestions[:limits['seo_suggestions']]
+            target_keywords = keywords[:3]  # Use top 3 keywords as targets
+            all_suggestions = generate_seo_suggestions(seo_data, target_keywords)
+            seo_suggestions = all_suggestions[:limits['seo_suggestions']]
         
         # Increment usage
         increment_usage(user['id'], 'audit')

@@ -2,22 +2,49 @@
 
 // Copy keywords functionality
 function copyKeywords() {
-    const keywords = document.querySelectorAll('#keywordsList .badge');
-    const keywordTexts = Array.from(keywords).map(badge => 
-        badge.textContent.replace(/^\d+\.\s*/, '')
-    );
+    const keywordsList = document.getElementById('keywordsList');
+    if (!keywordsList) {
+        console.error('Keywords list not found');
+        return;
+    }
 
-    const textToCopy = keywordTexts.join('\n');
+    const keywords = keywordsList.querySelectorAll('.badge');
+    const keywordText = Array.from(keywords).map(badge => badge.textContent.trim()).join('\n');
 
     if (navigator.clipboard) {
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            showToast('Keywords copied to clipboard!', 'success');
+        navigator.clipboard.writeText(keywordText).then(() => {
+            // Show success message
+            const btn = event.target.closest('button');
+            if (btn) {
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                btn.classList.add('btn-success');
+                btn.classList.remove('btn-outline-primary');
+
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-primary');
+                }, 2000);
+            }
         }).catch(err => {
             console.error('Failed to copy: ', err);
-            fallbackCopy(textToCopy);
+            alert('Failed to copy keywords. Please select and copy manually.');
         });
     } else {
-        fallbackCopy(textToCopy);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = keywordText;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            alert('Keywords copied to clipboard!');
+        } catch (err) {
+            console.error('Fallback copy failed: ', err);
+            alert('Failed to copy keywords. Please select and copy manually.');
+        }
+        document.body.removeChild(textArea);
     }
 }
 
@@ -60,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (submitBtn) {
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
                 submitBtn.disabled = true;
-                
+
                 // Re-enable button after form submission
                 setTimeout(() => {
                     submitBtn.innerHTML = '<i class="fas fa-search me-2"></i>Extract Keywords';
@@ -87,7 +114,7 @@ function exportResults(format = 'pdf') {
 // Copy API example
 function copyApiExample() {
     const apiCode = document.querySelector('pre code').textContent;
-    
+
     if (navigator.clipboard) {
         navigator.clipboard.writeText(apiCode).then(() => {
             showToast('API example copied to clipboard!', 'success');
@@ -129,3 +156,9 @@ function showToast(message, type = 'info') {
         toast.remove();
     });
 }
+
+// Add event listeners when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Add any additional event listeners here if needed
+    console.log('SEOExtract app loaded successfully');
+});
