@@ -288,18 +288,17 @@ def extract_keywords():
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         
-        # Get plan limits first
-        plan = user.get('plan', 'free')
-        limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-        
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
+        from seo_analyzer import generate_seo_suggestions
         from seo_audit import SEOAuditor
         
         all_keywords = extract_keywords_from_url(url)
         seo_data = get_seo_metadata(url)
         
-        # Apply plan limits to keywords
+        # Apply plan limits
+        plan = user.get('plan', 'free')
+        limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
         keywords = all_keywords[:limits['keywords_per_audit']]
         
         # Generate comprehensive SEO audit
@@ -402,7 +401,7 @@ def api_extract_keywords():
         
         # Extract keywords and SEO metadata
         from web_scraper import get_seo_metadata
-        from seo_audit import SEOAuditor
+        from seo_analyzer import generate_seo_suggestions
         
         all_keywords = extract_keywords_from_url(url)
         seo_data = get_seo_metadata(url)
@@ -411,16 +410,9 @@ def api_extract_keywords():
         # Generate SEO suggestions
         seo_suggestions = []
         if limits['seo_suggestions'] > 0:
-            auditor = SEOAuditor()
-            audit_results = auditor.analyze_page(seo_data, keywords, seo_data.get('content_text', ''))
-            
-            # Convert to suggestions format and limit
-            for result in audit_results[:limits['seo_suggestions']]:
-                seo_suggestions.append({
-                    'type': result['type'],
-                    'priority': result['priority'],
-                    'suggestion': f"{result['issue']}: {result['recommendation']}"
-                })
+            target_keywords = keywords[:3]  # Use top 3 keywords as targets
+            all_suggestions = generate_seo_suggestions(seo_data, target_keywords)
+            seo_suggestions = all_suggestions[:limits['seo_suggestions']]
         
         # Increment usage
         increment_usage(user['id'], 'audit')
