@@ -125,17 +125,22 @@ class AIKeywordExtractor:
             # Apply final scoring and filtering
             scored_keywords = self._apply_final_scoring(all_keywords, text, url)
             
-            # Sort by score and apply quality filters
+            # Sort by score and apply advanced quality filters
             final_keywords = []
             seen = set()
             
-            # Get all candidates first
+            # Get all candidates with enhanced filtering
             candidates = []
             for keyword, score in sorted(scored_keywords.items(), key=lambda x: x[1], reverse=True):
                 keyword_clean = keyword.lower().strip()
+                
+                # Apply comprehensive quality checks
                 if (keyword_clean not in seen and 
                     self._is_high_quality_keyword(keyword) and
-                    not self._is_weak_fragment(keyword)):
+                    not self._is_weak_fragment(keyword) and
+                    self._is_natural_language_query(keyword) and
+                    self._has_user_intent(keyword)):
+                    
                     candidates.append(keyword)
                     seen.add(keyword_clean)
             
@@ -144,31 +149,52 @@ class AIKeywordExtractor:
                 try:
                     trainer = get_keyword_trainer()
                     if trainer.is_trained:
-                        # Step 1: Direct filtering to remove bad keywords (fast)
+                        # Step 1: Direct filtering to remove bad keywords
                         direct_filtered = trainer.filter_keywords_direct(candidates, remove_bad=True, use_fuzzy=True)
                         
                         # Step 2: Score and sort remaining keywords
-                        scored_keywords = trainer.score_and_sort_keywords(direct_filtered, use_fuzzy=True)
+                        scored_keywords_final = trainer.score_and_sort_keywords(direct_filtered, use_fuzzy=True)
                         
-                        # Step 3: Take top keywords based on combined scoring
-                        final_keywords = [kw for kw, score in scored_keywords[:max_keywords]]
+                        # Step 3: Prioritize user intent keywords and take top 15
+                        prioritized_keywords = []
+                        intent_keywords = []
+                        other_keywords = []
+                        
+                        for kw, score in scored_keywords_final:
+                            if self._is_google_like_query(kw) and self._has_user_intent(kw):
+                                intent_keywords.append((kw, score))
+                            else:
+                                other_keywords.append((kw, score))
+                        
+                        # Combine with priority to intent-based keywords
+                        all_sorted = intent_keywords + other_keywords
+                        final_keywords = [kw for kw, score in all_sorted[:15]]  # Top 15 keywords
                         
                         # Log detailed filtering stats
                         stats = trainer.get_training_stats()
-                        logging.info(f"Applied direct + AI filtering with {stats['total_examples']} examples:")
+                        logging.info(f"Enhanced filtering with {stats['total_examples']} examples:")
                         logging.info(f"  Initial candidates: {len(candidates)}")
                         logging.info(f"  After direct filtering: {len(direct_filtered)}")
-                        logging.info(f"  Final keywords: {len(final_keywords)}")
-                        logging.info(f"  Training data: {stats['good_examples']} good, {stats['bad_examples']} bad")
+                        logging.info(f"  User intent keywords: {len(intent_keywords)}")
+                        logging.info(f"  Final top 15 keywords: {len(final_keywords)}")
                     else:
-                        final_keywords = candidates[:max_keywords]
-                        logging.warning("Trainer not properly trained, using fallback")
+                        # Fallback: prioritize user intent manually
+                        intent_candidates = [kw for kw in candidates if self._has_user_intent(kw)]
+                        other_candidates = [kw for kw in candidates if not self._has_user_intent(kw)]
+                        final_keywords = (intent_candidates + other_candidates)[:15]
+                        logging.warning("Trainer not trained, using manual user intent prioritization")
                 except Exception as e:
                     logging.warning(f"Training-based filtering failed: {e}")
-                    final_keywords = candidates[:max_keywords]
+                    # Manual prioritization fallback
+                    intent_candidates = [kw for kw in candidates if self._has_user_intent(kw)]
+                    other_candidates = [kw for kw in candidates if not self._has_user_intent(kw)]
+                    final_keywords = (intent_candidates + other_candidates)[:15]
             else:
-                final_keywords = candidates[:max_keywords]
-                logging.warning("Trainer not available, using base filtering")
+                # Manual prioritization when trainer not available
+                intent_candidates = [kw for kw in candidates if self._has_user_intent(kw)]
+                other_candidates = [kw for kw in candidates if not self._has_user_intent(kw)]
+                final_keywords = (intent_candidates + other_candidates)[:15]
+                logging.warning("Trainer not available, using manual user intent prioritization")
             
             return final_keywords
             
@@ -1174,14 +1200,21 @@ class AIKeywordExtractor:
         return keyword_lower in incomplete_phrases
     
     def _apply_final_scoring(self, keywords: Dict[str, float], text: str, url: str) -> Dict[str, float]:
-        """Apply final scoring algorithm to keywords"""
+        """Apply final scoring algorithm to keywords with advanced restructuring"""
         scored_keywords = {}
         text_lower = text.lower()
         text_length = len(text.split())
         
         for keyword, base_score in keywords.items():
+            # First, try to restructure awkward keywords
+            restructured_keyword = self._restructure_keyword(keyword)
+            
+            # Skip if keyword becomes invalid after restructuring
+            if not restructured_keyword or not self._is_natural_language_query(restructured_keyword):
+                continue
+            
             score = base_score
-            keyword_lower = keyword.lower()
+            keyword_lower = restructured_keyword.lower()
             
             # Frequency scoring (optimal 1-3% of content)
             frequency = text_lower.count(keyword_lower)
@@ -1193,7 +1226,7 @@ class AIKeywordExtractor:
                     score *= 0.6  # Penalize over-optimization
             
             # Word count bonus for specific ranges
-            word_count = len(keyword.split())
+            word_count = len(restructured_keyword.split())
             if word_count == 2:
                 score *= 1.4  # Sweet spot for SEO
             elif word_count == 3:
@@ -1201,15 +1234,23 @@ class AIKeywordExtractor:
             elif word_count >= 4:
                 score *= 0.9  # Too long
             
+            # User intent bonus (higher priority)
+            if self._has_user_intent(restructured_keyword):
+                score *= 2.0
+            
             # Commercial intent bonus
-            if self._has_commercial_intent(keyword):
+            if self._has_commercial_intent(restructured_keyword):
                 score *= 1.5
             
             # Technical/specific term bonus
-            if self._is_technical_or_specific(keyword):
+            if self._is_technical_or_specific(restructured_keyword):
                 score *= 1.3
             
-            scored_keywords[keyword] = score
+            # Natural language bonus
+            if self._is_google_like_query(restructured_keyword):
+                score *= 1.6
+            
+            scored_keywords[restructured_keyword] = score
         
         return scored_keywords
     
@@ -1241,8 +1282,158 @@ class AIKeywordExtractor:
         
         return False
     
+    def _restructure_keyword(self, keyword: str) -> str:
+        """Restructure awkward keyword phrases into natural forms"""
+        keyword = keyword.strip().lower()
+        words = keyword.split()
+        
+        if len(words) < 2:
+            return keyword
+        
+        # Pattern: "service in location" -> "location service"
+        if len(words) >= 4:
+            # Handle patterns like "plumbing in manhattan services"
+            if 'in' in words and ('service' in words or 'services' in words):
+                try:
+                    in_index = words.index('in')
+                    service_words = [w for w in words if w in ['service', 'services']]
+                    if in_index < len(words) - 1 and service_words:
+                        # Extract parts
+                        before_in = words[:in_index]
+                        location = words[in_index + 1:in_index + 2]
+                        service_type = service_words[0]
+                        
+                        # Restructure: "plumbing services in Manhattan"
+                        if before_in and location:
+                            return f"{' '.join(before_in)} {service_type} in {' '.join(location)}"
+                except (ValueError, IndexError):
+                    pass
+        
+        # Remove incomplete sentence fragments
+        if any(keyword.startswith(frag) for frag in [
+            'professional plumbers provide', 'reliable plumbers who', 'experts who can',
+            'specialists that offer', 'companies that provide'
+        ]):
+            return ""
+        
+        # Fix word order for location-based services
+        location_patterns = [
+            (r'^(\w+)\s+in\s+(\w+)\s+(service|services)$', r'\1 \3 in \2'),
+            (r'^(\w+)\s+(\w+)\s+in\s+(\w+)$', r'\1 \2 in \3'),
+        ]
+        
+        for pattern, replacement in location_patterns:
+            if re.match(pattern, keyword):
+                return re.sub(pattern, replacement, keyword)
+        
+        return keyword
+    
+    def _is_natural_language_query(self, keyword: str) -> bool:
+        """Check if keyword resembles how humans search on Google"""
+        keyword_lower = keyword.lower().strip()
+        words = keyword_lower.split()
+        
+        # Drop if contains vague descriptors without service context
+        vague_descriptors = [
+            'reliable and affordable service', 'professional and trustworthy',
+            'experienced and reliable', 'quality and affordable'
+        ]
+        
+        if any(vague in keyword_lower for vague in vague_descriptors):
+            return False
+        
+        # Drop generic names without SEO value
+        generic_names = ['daniel', 'mike', 'john', 'steve', 'alex', 'chris', 'david']
+        if len(words) == 1 and keyword_lower in generic_names:
+            return False
+        
+        # Drop brand noise without clear service intent
+        brand_noise_patterns = [
+            r'\b\w+\s+(inc|llc|corp|company)\b',  # Company suffixes alone
+            r'\b(call|phone|contact)\s+(us|now|today)\b',  # Generic call-to-actions
+        ]
+        
+        for pattern in brand_noise_patterns:
+            if re.search(pattern, keyword_lower):
+                return False
+        
+        # Must have clear service or product intent
+        return (self._has_user_intent(keyword) or 
+                self._has_commercial_intent(keyword) or
+                self._is_technical_or_specific(keyword))
+    
+    def _has_user_intent(self, keyword: str) -> bool:
+        """Check if keyword shows clear user search intent"""
+        keyword_lower = keyword.lower()
+        
+        # High-intent patterns
+        intent_patterns = [
+            # Service-based intent
+            r'\b\w+\s+(?:services?|repair|installation|maintenance|cleaning)\b',
+            r'\bemergency\s+\w+', r'\b24\s*hour\s+\w+', r'\bsame\s*day\s+\w+',
+            
+            # Location-based intent
+            r'\b\w+\s+(?:near\s+me|in\s+\w+)\b',
+            r'\blocal\s+\w+', r'\b\w+\s+area\b',
+            
+            # Problem-solving intent
+            r'\bhow\s+to\s+\w+', r'\b\w+\s+(?:tips|guide|tutorial)\b',
+            r'\bbest\s+\w+\s+for\b', r'\btop\s+\w+\s+for\b',
+            
+            # Commercial intent
+            r'\b(?:buy|purchase|hire|book)\s+\w+',
+            r'\baffordable\s+\w+', r'\bcheap\s+\w+', r'\bdiscount\s+\w+'
+        ]
+        
+        return any(re.search(pattern, keyword_lower) for pattern in intent_patterns)
+    
+    def _is_google_like_query(self, keyword: str) -> bool:
+        """Check if keyword resembles natural Google search queries"""
+        keyword_lower = keyword.lower().strip()
+        words = keyword_lower.split()
+        
+        # Natural query patterns humans use
+        natural_patterns = [
+            # Question-like queries
+            r'^(?:how|what|where|when|why|which)\s+',
+            r'\bhow\s+to\s+\w+',
+            
+            # Local search patterns
+            r'\bnear\s+me\b', r'\bin\s+\w+', r'\blocal\s+\w+',
+            
+            # Best/top recommendation queries
+            r'^(?:best|top)\s+\w+', r'\bbest\s+\w+\s+(?:for|in|near)\b',
+            
+            # Service + location combinations
+            r'^\w+\s+(?:services?|repair|installation)\s+in\s+\w+',
+            
+            # Emergency/urgent queries
+            r'^emergency\s+\w+', r'^24\s*hour\s+\w+',
+            
+            # Product/service + adjective
+            r'^(?:affordable|cheap|professional|certified)\s+\w+',
+        ]
+        
+        # Check against natural patterns
+        if any(re.search(pattern, keyword_lower) for pattern in natural_patterns):
+            return True
+        
+        # Check for natural word flow
+        if len(words) >= 2:
+            # Avoid awkward word combinations
+            awkward_combinations = [
+                ['provide', 'reliable'], ['who', 'can'], ['that', 'offer'],
+                ['professional', 'individually'], ['and', 'and']
+            ]
+            
+            for i in range(len(words) - 1):
+                if [words[i], words[i + 1]] in awkward_combinations:
+                    return False
+        
+        return True
+    
     def _enhanced_fallback_extraction(self, text: str, max_keywords: int) -> List[str]:
-        """Enhanced fallback with better phrase extraction"""
+        """Enhanced fallback with better phrase extraction and restructuring"""
         try:
             # Remove HTML and normalize
             clean_text = re.sub(r'<[^>]+>', ' ', text)
@@ -1259,25 +1450,30 @@ class AIKeywordExtractor:
                 # Extract 2-3 word phrases
                 for i in range(len(words) - 1):
                     phrase = f"{words[i]} {words[i+1]}"
-                    if (len(phrase) > 6 and 
-                        not any(stop in phrase for stop in ['the ', 'and ', 'or ']) and
-                        not self._is_weak_fragment(phrase)):
-                        phrases.append(phrase)
+                    restructured = self._restructure_keyword(phrase)
+                    if (restructured and len(restructured) > 6 and 
+                        self._is_natural_language_query(restructured) and
+                        not self._is_weak_fragment(restructured)):
+                        phrases.append(restructured)
                     
                     # Try 3-word phrases
                     if i < len(words) - 2:
                         phrase3 = f"{words[i]} {words[i+1]} {words[i+2]}"
-                        if (len(phrase3) > 10 and
-                            not self._is_weak_fragment(phrase3)):
-                            phrases.append(phrase3)
+                        restructured3 = self._restructure_keyword(phrase3)
+                        if (restructured3 and len(restructured3) > 10 and
+                            self._is_natural_language_query(restructured3) and
+                            not self._is_weak_fragment(restructured3)):
+                            phrases.append(restructured3)
             
-            # Score and filter phrases
+            # Score and filter phrases with enhanced criteria
             phrase_scores = {}
             for phrase in phrases:
-                if self._is_high_quality_keyword(phrase):
-                    phrase_scores[phrase] = clean_text.lower().count(phrase.lower())
+                if self._is_high_quality_keyword(phrase) and self._has_user_intent(phrase):
+                    base_score = clean_text.lower().count(phrase.lower())
+                    intent_bonus = 2.0 if self._is_google_like_query(phrase) else 1.0
+                    phrase_scores[phrase] = base_score * intent_bonus
             
-            # Return top phrases
+            # Return top phrases prioritized by user intent
             return [phrase for phrase, score in 
                    sorted(phrase_scores.items(), key=lambda x: x[1], reverse=True)[:max_keywords]]
         
