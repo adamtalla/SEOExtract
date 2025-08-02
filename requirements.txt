@@ -8,3 +8,15 @@ beautifulsoup4
 reportlab
 nltk
 numpy
+beautifulsoup4
+flask
+flask-cors
+gunicorn
+nltk
+numpy
+openai
+python-dotenv
+reportlab
+requests
+trafilatura
+werkzeug
