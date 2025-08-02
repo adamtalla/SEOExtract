@@ -14,6 +14,7 @@ import numpy as np
 # Download required NLTK data if not present
 try:
     nltk.data.find('tokenizers/punkt')
+    nltk.data.find('tokenizers/punkt_tab')
     nltk.data.find('corpora/stopwords')
     nltk.data.find('taggers/averaged_perceptron_tagger')
     nltk.data.find('chunkers/maxent_ne_chunker')
@@ -22,6 +23,7 @@ try:
 except LookupError:
     logging.info("Downloading required NLTK data...")
     nltk.download('punkt', quiet=True)
+    nltk.download('punkt_tab', quiet=True)
     nltk.download('stopwords', quiet=True)
     nltk.download('averaged_perceptron_tagger', quiet=True)
     nltk.download('maxent_ne_chunker', quiet=True)
@@ -35,8 +37,9 @@ class AIKeywordExtractor:
         self.stop_words = set(stopwords.words('english'))
         self.lemmatizer = WordNetLemmatizer()
         
-        # Extend stop words with web-specific terms
+        # Extend stop words with web-specific and SEO-irrelevant terms
         self.stop_words.update({
+            # Generic web terms
             'website', 'page', 'site', 'web', 'home', 'main', 'content', 'click', 'here',
             'read', 'more', 'contact', 'about', 'privacy', 'terms', 'cookie', 'login',
             'register', 'signup', 'user', 'account', 'profile', 'settings', 'help',
@@ -45,7 +48,25 @@ class AIKeywordExtractor:
             'address', 'location', 'map', 'search', 'filter', 'sort', 'view', 'show',
             'hide', 'menu', 'navigation', 'nav', 'header', 'footer', 'sidebar',
             'widget', 'button', 'link', 'image', 'video', 'audio', 'download',
-            'upload', 'file', 'document', 'pdf', 'jpg', 'png', 'gif', 'svg'
+            'upload', 'file', 'document', 'pdf', 'jpg', 'png', 'gif', 'svg',
+            # Action/filler words that aren't SEO valuable
+            'call', 'offer', 'today', 'now', 'get', 'find', 'learn', 'discover',
+            'explore', 'browse', 'visit', 'try', 'start', 'begin', 'continue',
+            'join', 'become', 'make', 'take', 'give', 'receive', 'send', 'buy',
+            'order', 'purchase', 'choose', 'select', 'pick', 'decide', 'want',
+            'need', 'use', 'enjoy', 'love', 'like', 'prefer', 'recommend',
+            # Generic descriptors
+            'best', 'great', 'good', 'excellent', 'amazing', 'awesome', 'perfect',
+            'ideal', 'ultimate', 'complete', 'full', 'total', 'entire', 'whole',
+            'all', 'every', 'each', 'any', 'some', 'many', 'most', 'few', 'several',
+            'various', 'different', 'multiple', 'numerous', 'countless', 'unlimited',
+            # Time/date terms
+            'year', 'month', 'week', 'day', 'hour', 'minute', 'second', 'time',
+            'date', 'schedule', 'calendar', 'appointment', 'meeting', 'event',
+            # Generic nouns that add no SEO value
+            'thing', 'stuff', 'item', 'object', 'element', 'part', 'piece',
+            'section', 'area', 'place', 'spot', 'point', 'way', 'method',
+            'approach', 'solution', 'option', 'choice', 'alternative', 'possibility'
         })
         
         # Industry-specific keyword patterns
@@ -59,7 +80,7 @@ class AIKeywordExtractor:
         }
     
     def extract_keywords(self, text: str, url: str = "", max_keywords: int = 10) -> List[str]:
-        """Extract keywords using AI-powered semantic analysis"""
+        """Extract keywords using AI-powered semantic analysis with classification and scoring"""
         try:
             if not text or len(text.strip()) < 50:
                 logging.warning("Text too short for meaningful keyword extraction")
@@ -68,22 +89,24 @@ class AIKeywordExtractor:
             # Preprocess text
             cleaned_text = self._preprocess_text(text)
             
-            # Extract different types of keywords
+            # Extract different types of keywords with enhanced analysis
             semantic_keywords = self._extract_semantic_keywords(cleaned_text)
             entity_keywords = self._extract_named_entities(cleaned_text)
             phrase_keywords = self._extract_key_phrases(cleaned_text)
             domain_keywords = self._extract_domain_keywords(text, url)
+            seo_keywords = self._extract_seo_focused_keywords(cleaned_text, url)
             
-            # Combine and score all keywords
+            # Combine and score all keywords with SEO importance
             all_keywords = {}
             
             # Add semantic keywords with high weight
             for kw, score in semantic_keywords.items():
                 all_keywords[kw] = score * 1.5
             
-            # Add entity keywords with medium-high weight
+            # Add entity keywords but filter out personal names
             for kw, score in entity_keywords.items():
-                all_keywords[kw] = all_keywords.get(kw, 0) + score * 1.3
+                if not self._is_personal_name(kw):
+                    all_keywords[kw] = all_keywords.get(kw, 0) + score * 1.3
             
             # Add phrase keywords with medium weight
             for kw, score in phrase_keywords.items():
@@ -93,10 +116,17 @@ class AIKeywordExtractor:
             for kw, score in domain_keywords.items():
                 all_keywords[kw] = all_keywords.get(kw, 0) + score * 1.2
             
-            # Sort by score and return top keywords
-            sorted_keywords = sorted(all_keywords.items(), key=lambda x: x[1], reverse=True)
+            # Add SEO-focused keywords with highest weight
+            for kw, score in seo_keywords.items():
+                all_keywords[kw] = all_keywords.get(kw, 0) + score * 2.0
             
-            # Filter and clean results
+            # Calculate SEO importance scores
+            keyword_scores = self._calculate_seo_importance(all_keywords, text, url)
+            
+            # Sort by SEO importance score
+            sorted_keywords = sorted(keyword_scores.items(), key=lambda x: x[1], reverse=True)
+            
+            # Filter and clean results with enhanced quality checks
             final_keywords = []
             seen = set()
             
@@ -106,8 +136,9 @@ class AIKeywordExtractor:
                 
                 keyword_clean = keyword.lower().strip()
                 if (keyword_clean not in seen and 
-                    self._is_quality_keyword(keyword) and
-                    len(keyword_clean) >= 3):
+                    self._is_seo_valuable_keyword(keyword) and
+                    len(keyword_clean) >= 3 and
+                    not self._is_generic_filler(keyword)):
                     final_keywords.append(keyword)
                     seen.add(keyword_clean)
             
@@ -370,18 +401,284 @@ class AIKeywordExtractor:
         
         return True
     
+    def _extract_seo_focused_keywords(self, text: str, url: str) -> Dict[str, float]:
+        """Extract keywords specifically valuable for SEO"""
+        keywords = {}
+        text_lower = text.lower()
+        
+        # Business/service indicators
+        service_patterns = [
+            r'\b(\w+)\s+services?\b', r'\b(\w+)\s+solutions?\b', r'\b(\w+)\s+company\b',
+            r'\b(\w+)\s+specialist\b', r'\b(\w+)\s+expert\b', r'\b(\w+)\s+professional\b',
+            r'\b(\w+)\s+contractor\b', r'\b(\w+)\s+repair\b', r'\b(\w+)\s+installation\b',
+            r'\b(\w+)\s+maintenance\b', r'\b(\w+)\s+cleaning\b', r'\b(\w+)\s+consulting\b'
+        ]
+        
+        for pattern in service_patterns:
+            matches = re.finditer(pattern, text_lower)
+            for match in matches:
+                service_term = match.group(1)
+                if service_term not in self.stop_words and len(service_term) >= 3:
+                    full_phrase = match.group(0)
+                    keywords[full_phrase] = 3.0
+                    keywords[service_term] = 2.0
+        
+        # Location-based keywords
+        location_patterns = [
+            r'\b(\w+)\s+(plumber|electrician|contractor|company|services?)\b',
+            r'\b(in|near|around)\s+(\w+(?:\s+\w+)?)\b'
+        ]
+        
+        for pattern in location_patterns:
+            matches = re.finditer(pattern, text_lower)
+            for match in matches:
+                if len(match.groups()) >= 2:
+                    location_term = match.group(1) if 'in|near|around' not in match.group(1) else match.group(2)
+                    if location_term not in self.stop_words and len(location_term) >= 3:
+                        keywords[match.group(0)] = 2.5
+        
+        # Emergency/urgent service keywords
+        urgent_patterns = [
+            r'\bemergency\s+(\w+)', r'\b24\s*hours?\s+(\w+)', r'\bimmediate\s+(\w+)',
+            r'\bsame\s+day\s+(\w+)', r'\bfast\s+(\w+)', r'\bquick\s+(\w+)'
+        ]
+        
+        for pattern in urgent_patterns:
+            matches = re.finditer(pattern, text_lower)
+            for match in matches:
+                keywords[match.group(0)] = 2.8
+        
+        return keywords
+    
+    def _calculate_seo_importance(self, keywords: Dict[str, float], text: str, url: str) -> Dict[str, float]:
+        """Calculate SEO importance scores based on multiple factors"""
+        scored_keywords = {}
+        text_lower = text.lower()
+        text_length = len(text.split())
+        
+        for keyword, base_score in keywords.items():
+            seo_score = base_score
+            keyword_lower = keyword.lower()
+            
+            # Frequency factor (but not too high to avoid keyword stuffing)
+            frequency = text_lower.count(keyword_lower)
+            if frequency > 0:
+                # Optimal frequency is 1-3% of content
+                frequency_ratio = frequency / text_length * 100
+                if 0.5 <= frequency_ratio <= 3.0:
+                    seo_score *= 1.5
+                elif frequency_ratio > 5.0:
+                    seo_score *= 0.7  # Penalize potential keyword stuffing
+            
+            # Position factor - keywords near beginning are more valuable
+            first_occurrence = text_lower.find(keyword_lower)
+            if first_occurrence >= 0:
+                position_factor = max(0.8, 1.2 - (first_occurrence / len(text)))
+                seo_score *= position_factor
+            
+            # Length factor - multi-word phrases are often more valuable
+            word_count = len(keyword.split())
+            if word_count >= 2:
+                seo_score *= 1.3
+            if word_count >= 3:
+                seo_score *= 1.2
+            
+            # Commercial intent factor
+            if self._has_commercial_intent(keyword):
+                seo_score *= 1.6
+            
+            # Technical/specific terms get bonus
+            if self._is_technical_term(keyword):
+                seo_score *= 1.4
+            
+            scored_keywords[keyword] = seo_score
+        
+        return scored_keywords
+    
+    def _is_personal_name(self, text: str) -> bool:
+        """Check if text appears to be a personal name"""
+        words = text.split()
+        if len(words) > 3:  # Names are usually 1-3 words
+            return False
+        
+        # Common name patterns
+        name_patterns = [
+            r'^[A-Z][a-z]+\s+[A-Z][a-z]+$',  # First Last
+            r'^[A-Z][a-z]+\s+[A-Z]\.\s+[A-Z][a-z]+$',  # First M. Last
+            r'^Dr\.\s+[A-Z][a-z]+',  # Dr. Name
+            r'^Mr\.\s+[A-Z][a-z]+',  # Mr. Name
+            r'^Mrs\.\s+[A-Z][a-z]+',  # Mrs. Name
+        ]
+        
+        for pattern in name_patterns:
+            if re.match(pattern, text):
+                return True
+        
+        return False
+    
+    def _is_seo_valuable_keyword(self, keyword: str) -> bool:
+        """Enhanced quality check for SEO value"""
+        keyword_lower = keyword.lower().strip()
+        
+        # Basic quality checks
+        if not self._is_quality_keyword(keyword):
+            return False
+        
+        # Check for business/service relevance
+        valuable_patterns = [
+            r'\b\w+\s+(service|solution|company|repair|cleaning|installation)\b',
+            r'\bemergency\s+\w+', r'\b24\s*hour', r'\bprofessional\s+\w+',
+            r'\bcertified\s+\w+', r'\blicensed\s+\w+', r'\bcommercial\s+\w+',
+            r'\bresidential\s+\w+', r'\baffordable\s+\w+', r'\bexperienced\s+\w+'
+        ]
+        
+        for pattern in valuable_patterns:
+            if re.search(pattern, keyword_lower):
+                return True
+        
+        # Industry-specific terms are valuable
+        if any(industry_term in keyword_lower for industry_terms in self.keyword_patterns.values() 
+               for industry_term in industry_terms):
+            return True
+        
+        # Multi-word phrases are generally more valuable
+        if len(keyword.split()) >= 2:
+            return True
+        
+        # Single technical/specific terms
+        if len(keyword) >= 5 and not self._is_generic_filler(keyword):
+            return True
+        
+        return False
+    
+    def _is_generic_filler(self, keyword: str) -> bool:
+        """Check if keyword is generic filler without SEO value"""
+        keyword_lower = keyword.lower().strip()
+        
+        # Generic action words
+        generic_actions = {
+            'call', 'contact', 'visit', 'browse', 'explore', 'discover', 'learn',
+            'find', 'search', 'look', 'see', 'view', 'check', 'try', 'test',
+            'start', 'begin', 'continue', 'finish', 'complete', 'end', 'stop'
+        }
+        
+        # Generic descriptors
+        generic_descriptors = {
+            'best', 'great', 'good', 'excellent', 'amazing', 'awesome', 'perfect',
+            'wonderful', 'fantastic', 'outstanding', 'superior', 'premium', 'quality',
+            'top', 'leading', 'premier', 'ultimate', 'complete', 'full', 'total'
+        }
+        
+        # Time-related terms
+        time_terms = {
+            'today', 'now', 'soon', 'later', 'tomorrow', 'yesterday', 'recently',
+            'currently', 'presently', 'immediately', 'instantly', 'quickly', 'fast'
+        }
+        
+        all_generic = generic_actions | generic_descriptors | time_terms
+        
+        return keyword_lower in all_generic
+    
+    def _has_commercial_intent(self, keyword: str) -> bool:
+        """Check if keyword indicates commercial/buying intent"""
+        commercial_indicators = [
+            'buy', 'purchase', 'order', 'hire', 'book', 'schedule', 'appointment',
+            'quote', 'estimate', 'price', 'cost', 'affordable', 'cheap', 'discount',
+            'deal', 'offer', 'special', 'promotion', 'service', 'repair', 'fix',
+            'install', 'replace', 'upgrade', 'maintenance', 'emergency', 'near me'
+        ]
+        
+        keyword_lower = keyword.lower()
+        return any(indicator in keyword_lower for indicator in commercial_indicators)
+    
+    def _is_technical_term(self, keyword: str) -> bool:
+        """Check if keyword is a technical/specific industry term"""
+        # Technical terms are usually:
+        # - Longer than 5 characters
+        # - Not in common dictionaries
+        # - Industry-specific
+        keyword_lower = keyword.lower()
+        
+        if len(keyword_lower) < 5:
+            return False
+        
+        # Check if it contains technical patterns
+        technical_patterns = [
+            r'\w+ing$',  # -ing endings (plumbing, roofing)
+            r'\w+tion$',  # -tion endings (installation, renovation)
+            r'\w+ment$',  # -ment endings (treatment, equipment)
+            r'\w+ance$',  # -ance endings (maintenance, insurance)
+            r'\w+ical$',  # -ical endings (electrical, mechanical)
+        ]
+        
+        for pattern in technical_patterns:
+            if re.search(pattern, keyword_lower):
+                return True
+        
+        return False
+    
+    def classify_keyword(self, keyword: str, context: str = "") -> str:
+        """Classify keyword into SEO categories"""
+        keyword_lower = keyword.lower()
+        
+        # Service/Product terms
+        if any(term in keyword_lower for term in ['service', 'product', 'solution', 'repair', 'installation', 'maintenance']):
+            return 'service'
+        
+        # Location terms
+        if any(term in keyword_lower for term in ['near', 'in', 'location', 'local', 'area']) or self._is_location_term(keyword):
+            return 'location'
+        
+        # Action/Commercial terms
+        if self._has_commercial_intent(keyword):
+            return 'commercial'
+        
+        # Technical terms
+        if self._is_technical_term(keyword):
+            return 'technical'
+        
+        # Brand/Company terms
+        if any(term in keyword_lower for term in ['company', 'corp', 'inc', 'llc', 'business']):
+            return 'brand'
+        
+        return 'general'
+    
+    def _is_location_term(self, keyword: str) -> bool:
+        """Check if keyword is likely a location"""
+        # This is a simplified check - in production you might use a location database
+        location_indicators = [
+            r'\b[A-Z][a-z]+\s+(city|town|county|state|street|avenue|road|drive)\b',
+            r'\b(north|south|east|west|downtown|uptown)\s+\w+',
+            r'\b\w+\s+(NY|NYC|CA|FL|TX|IL)\b'  # State abbreviations
+        ]
+        
+        for pattern in location_indicators:
+            if re.search(pattern, keyword, re.IGNORECASE):
+                return True
+        
+        return False
+    
     def _fallback_extraction(self, text: str, max_keywords: int) -> List[str]:
-        """Fallback keyword extraction method"""
+        """Enhanced fallback keyword extraction method"""
         try:
-            # Simple frequency-based extraction
+            # Simple frequency-based extraction with better filtering
             words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
             word_freq = Counter(words)
             
-            # Filter out stop words
-            filtered_words = {
-                word: freq for word, freq in word_freq.items()
-                if word not in self.stop_words and len(word) >= 3
-            }
+            # Filter out stop words and generic terms
+            filtered_words = {}
+            for word, freq in word_freq.items():
+                if (word not in self.stop_words and 
+                    len(word) >= 3 and 
+                    not self._is_generic_filler(word) and
+                    freq >= 2):  # Must appear at least twice
+                    filtered_words[word] = freq
+            
+            # Extract meaningful phrases
+            phrases = self._extract_simple_phrases(text)
+            for phrase in phrases:
+                if not self._is_generic_filler(phrase):
+                    filtered_words[phrase] = filtered_words.get(phrase, 0) + 3
             
             # Return top keywords
             return [word for word, freq in 
@@ -390,6 +687,22 @@ class AIKeywordExtractor:
         except Exception as e:
             logging.error(f"Fallback extraction failed: {str(e)}")
             return []
+    
+    def _extract_simple_phrases(self, text: str) -> List[str]:
+        """Extract simple meaningful phrases for fallback"""
+        phrases = []
+        sentences = text.split('.')
+        
+        for sentence in sentences:
+            words = sentence.lower().split()
+            for i in range(len(words) - 1):
+                phrase = f"{words[i]} {words[i+1]}"
+                if (len(phrase) > 6 and 
+                    not any(stop in phrase for stop in ['the ', 'and ', 'or ', 'but ']) and
+                    not self._is_generic_filler(phrase)):
+                    phrases.append(phrase)
+        
+        return phrases
 
 # Test function
 def test_ai_extraction():

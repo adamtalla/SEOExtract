@@ -8,7 +8,7 @@ ai_extractor = AIKeywordExtractor()
 
 def extract_keywords_from_text(text, max_keywords=10, headings_products=None):
     """
-    Extract keywords from text using AI-powered analysis
+    Extract keywords from text using enhanced AI-powered analysis
     Always returns a list, never raises exceptions
     """
     keywords = []  # Initialize immediately
@@ -18,12 +18,19 @@ def extract_keywords_from_text(text, max_keywords=10, headings_products=None):
             logging.warning("Text is too short or empty for keyword extraction")
             return keywords
 
-        # Use AI extractor for intelligent keyword extraction
+        # Use enhanced AI extractor for intelligent keyword extraction
         keywords = ai_extractor.extract_keywords(text, max_keywords=max_keywords)
 
-        # Apply quality filtering if headings_products provided
-        if headings_products:
+        # Apply enhanced filtering for SEO relevance
+        if keywords:
+            keywords = filter_seo_keywords(keywords, text)
+
+        # Apply context filtering if headings_products provided
+        if headings_products and keywords:
             keywords = filter_keywords_by_context(keywords, headings_products)
+
+        # Final quality filter - remove any remaining generic terms
+        keywords = [kw for kw in keywords if not is_generic_term(kw)]
 
         # Ensure we don't exceed max_keywords
         return keywords[:max_keywords]
@@ -215,18 +222,107 @@ def get_keywords_with_requests(url, max_keywords=10):
 
 
 # Test function
+def filter_seo_keywords(keywords: List[str], text: str) -> List[str]:
+    """Filter keywords for SEO relevance and quality"""
+    if not keywords:
+        return []
+    
+    filtered_keywords = []
+    text_lower = text.lower()
+    
+    for keyword in keywords:
+        keyword_lower = keyword.lower().strip()
+        
+        # Skip if too short or contains numbers only
+        if len(keyword_lower) < 3 or keyword_lower.isdigit():
+            continue
+        
+        # Check frequency - keyword should appear but not too often
+        frequency = text_lower.count(keyword_lower)
+        text_length = len(text.split())
+        frequency_ratio = frequency / text_length * 100 if text_length > 0 else 0
+        
+        # Skip if appears too rarely or too frequently (keyword stuffing)
+        if frequency_ratio < 0.1 or frequency_ratio > 5.0:
+            continue
+        
+        # Prefer multi-word phrases as they're more specific
+        word_count = len(keyword.split())
+        if word_count >= 2 or (word_count == 1 and len(keyword) >= 5):
+            filtered_keywords.append(keyword)
+    
+    return filtered_keywords
+
+
+def is_generic_term(keyword: str) -> bool:
+    """Check if keyword is too generic for SEO value"""
+    keyword_lower = keyword.lower().strip()
+    
+    # Generic business terms that don't add SEO value
+    generic_terms = {
+        'welcome', 'about', 'company', 'business', 'team', 'staff', 'people',
+        'work', 'working', 'offer', 'provide', 'giving', 'making', 'help',
+        'helping', 'looking', 'find', 'finding', 'get', 'getting', 'take',
+        'taking', 'use', 'using', 'try', 'trying', 'want', 'wanting',
+        'need', 'needing', 'call', 'calling', 'contact', 'today', 'now',
+        'time', 'years', 'experience', 'quality', 'best', 'great', 'good',
+        'excellent', 'amazing', 'perfect', 'professional', 'experienced'
+    }
+    
+    # Single generic words
+    if keyword_lower in generic_terms:
+        return True
+    
+    # Generic phrases
+    generic_phrases = [
+        'call now', 'contact us', 'get started', 'learn more', 'find out',
+        'years experience', 'quality service', 'best service', 'great service',
+        'professional service', 'call today', 'contact today'
+    ]
+    
+    if keyword_lower in generic_phrases:
+        return True
+    
+    return False
+
+
+def get_detailed_keywords(text: str, url: str = "", max_keywords: int = 10):
+    """Get detailed keyword analysis with classification and scoring"""
+    try:
+        from keyword_result import EnhancedKeywordExtractor
+        enhanced_extractor = EnhancedKeywordExtractor()
+        return enhanced_extractor.extract_keywords_detailed(text, url, max_keywords)
+    except Exception as e:
+        logging.error(f"Error in detailed keyword extraction: {str(e)}")
+        # Fallback to simple extraction
+        simple_keywords = extract_keywords_from_text(text, max_keywords)
+        return [{'keyword': kw, 'score': 1.0, 'category': 'general'} for kw in simple_keywords]
+
+
 def test_ai_keyword_extraction():
-    """Test the AI keyword extraction"""
+    """Test the enhanced AI keyword extraction"""
     test_text = """
-    Welcome to TechCorp, a leading artificial intelligence and machine learning company. 
-    We specialize in deep learning algorithms, neural networks, and natural language processing. 
-    Our data science team develops cutting-edge solutions for enterprise clients using Python, 
-    TensorFlow, and cloud computing platforms. We offer consulting services, custom software 
-    development, and AI model training for businesses looking to leverage artificial intelligence.
+    Welcome to NYC Plumbing Solutions, your trusted emergency plumber in Manhattan. 
+    We provide 24-hour plumbing services including drain cleaning, pipe repair, 
+    water heater installation, and bathroom renovation. Our licensed plumbers 
+    offer affordable residential and commercial plumbing services throughout 
+    New York City. Call us for emergency plumbing repair, toilet installation, 
+    sink repair, and professional plumbing maintenance. We serve Manhattan, 
+    Brooklyn, Queens, and the Bronx with same-day plumbing services.
     """
 
+    # Test simple extraction
     keywords = extract_keywords_from_text(test_text, 8)
-    print(f"AI-extracted keywords: {keywords}")
+    print(f"Enhanced AI-extracted keywords: {keywords}")
+    
+    # Test detailed extraction
+    try:
+        detailed_results = get_detailed_keywords(test_text, "https://nycplumbing.com", 8)
+        print(f"Detailed results: {[r.keyword for r in detailed_results]}")
+        print(f"Categories: {set(r.category for r in detailed_results)}")
+    except Exception as e:
+        print(f"Detailed extraction error: {e}")
+    
     return keywords
 
 
