@@ -12,23 +12,26 @@ from nltk.stem import WordNetLemmatizer
 import numpy as np
 
 # Download required NLTK data if not present
-try:
-    nltk.data.find('tokenizers/punkt')
-    nltk.data.find('tokenizers/punkt_tab')
-    nltk.data.find('corpora/stopwords')
-    nltk.data.find('taggers/averaged_perceptron_tagger')
-    nltk.data.find('chunkers/maxent_ne_chunker')
-    nltk.data.find('corpora/words')
-    nltk.data.find('corpora/wordnet')
-except LookupError:
-    logging.info("Downloading required NLTK data...")
-    nltk.download('punkt', quiet=True)
-    nltk.download('punkt_tab', quiet=True)
-    nltk.download('stopwords', quiet=True)
-    nltk.download('averaged_perceptron_tagger', quiet=True)
-    nltk.download('maxent_ne_chunker', quiet=True)
-    nltk.download('words', quiet=True)
-    nltk.download('wordnet', quiet=True)
+required_nltk_data = [
+    ('tokenizers/punkt', 'punkt'),
+    ('tokenizers/punkt_tab', 'punkt_tab'),
+    ('corpora/stopwords', 'stopwords'),
+    ('taggers/averaged_perceptron_tagger', 'averaged_perceptron_tagger'),
+    ('taggers/averaged_perceptron_tagger_eng', 'averaged_perceptron_tagger_eng'),
+    ('chunkers/maxent_ne_chunker', 'maxent_ne_chunker'),
+    ('corpora/words', 'words'),
+    ('corpora/wordnet', 'wordnet')
+]
+
+for resource_path, download_name in required_nltk_data:
+    try:
+        nltk.data.find(resource_path)
+    except LookupError:
+        logging.info(f"Downloading NLTK resource: {download_name}")
+        try:
+            nltk.download(download_name, quiet=True)
+        except Exception as e:
+            logging.warning(f"Failed to download {download_name}: {e}")
 
 class AIKeywordExtractor:
     """AI-powered keyword extraction using NLP techniques and semantic analysis"""
@@ -80,65 +83,52 @@ class AIKeywordExtractor:
         }
     
     def extract_keywords(self, text: str, url: str = "", max_keywords: int = 10) -> List[str]:
-        """Extract keywords using AI-powered semantic analysis with classification and scoring"""
+        """Extract high-quality SEO keywords using enhanced analysis"""
         try:
             if not text or len(text.strip()) < 50:
                 logging.warning("Text too short for meaningful keyword extraction")
                 return []
             
-            # Preprocess text
-            cleaned_text = self._preprocess_text(text)
-            
-            # Extract different types of keywords with enhanced analysis
-            semantic_keywords = self._extract_semantic_keywords(cleaned_text)
-            entity_keywords = self._extract_named_entities(cleaned_text)
-            phrase_keywords = self._extract_key_phrases(cleaned_text)
+            # Extract HTML structure for better phrase detection
+            heading_keywords = self._extract_heading_keywords(text)
+            product_keywords = self._extract_product_service_keywords(text)
+            noun_phrase_keywords = self._extract_quality_noun_phrases(text)
             domain_keywords = self._extract_domain_keywords(text, url)
-            seo_keywords = self._extract_seo_focused_keywords(cleaned_text, url)
             
-            # Combine and score all keywords with SEO importance
+            # Combine all keywords with weighted scoring
             all_keywords = {}
             
-            # Add semantic keywords with high weight
-            for kw, score in semantic_keywords.items():
-                all_keywords[kw] = score * 1.5
+            # Heading keywords get highest priority (H1, H2, etc.)
+            for kw, score in heading_keywords.items():
+                all_keywords[kw] = score * 3.0
             
-            # Add entity keywords but filter out personal names
-            for kw, score in entity_keywords.items():
-                if not self._is_personal_name(kw):
-                    all_keywords[kw] = all_keywords.get(kw, 0) + score * 1.3
+            # Product/service keywords get high priority
+            for kw, score in product_keywords.items():
+                all_keywords[kw] = all_keywords.get(kw, 0) + score * 2.5
             
-            # Add phrase keywords with medium weight
-            for kw, score in phrase_keywords.items():
-                all_keywords[kw] = all_keywords.get(kw, 0) + score * 1.0
-            
-            # Add domain keywords with boost
-            for kw, score in domain_keywords.items():
-                all_keywords[kw] = all_keywords.get(kw, 0) + score * 1.2
-            
-            # Add SEO-focused keywords with highest weight
-            for kw, score in seo_keywords.items():
+            # Quality noun phrases get medium-high priority
+            for kw, score in noun_phrase_keywords.items():
                 all_keywords[kw] = all_keywords.get(kw, 0) + score * 2.0
             
-            # Calculate SEO importance scores
-            keyword_scores = self._calculate_seo_importance(all_keywords, text, url)
+            # Domain-specific keywords get medium priority
+            for kw, score in domain_keywords.items():
+                all_keywords[kw] = all_keywords.get(kw, 0) + score * 1.5
             
-            # Sort by SEO importance score
-            sorted_keywords = sorted(keyword_scores.items(), key=lambda x: x[1], reverse=True)
+            # Apply final scoring and filtering
+            scored_keywords = self._apply_final_scoring(all_keywords, text, url)
             
-            # Filter and clean results with enhanced quality checks
+            # Sort by score and apply quality filters
             final_keywords = []
             seen = set()
             
-            for keyword, score in sorted_keywords:
+            for keyword, score in sorted(scored_keywords.items(), key=lambda x: x[1], reverse=True):
                 if len(final_keywords) >= max_keywords:
                     break
                 
                 keyword_clean = keyword.lower().strip()
                 if (keyword_clean not in seen and 
-                    self._is_seo_valuable_keyword(keyword) and
-                    len(keyword_clean) >= 3 and
-                    not self._is_generic_filler(keyword)):
+                    self._is_high_quality_keyword(keyword) and
+                    not self._is_weak_fragment(keyword)):
                     final_keywords.append(keyword)
                     seen.add(keyword_clean)
             
@@ -146,7 +136,7 @@ class AIKeywordExtractor:
             
         except Exception as e:
             logging.error(f"Error in AI keyword extraction: {str(e)}")
-            return self._fallback_extraction(text, max_keywords)
+            return self._enhanced_fallback_extraction(text, max_keywords)
     
     def _preprocess_text(self, text: str) -> str:
         """Clean and preprocess text for analysis"""
@@ -658,6 +648,353 @@ class AIKeywordExtractor:
         
         return False
     
+    def _extract_heading_keywords(self, text: str) -> Dict[str, float]:
+        """Extract keywords from HTML headings and important elements"""
+        keywords = {}
+        
+        # Extract from HTML headings
+        heading_patterns = [
+            r'<h[1-6][^>]*>(.*?)</h[1-6]>',  # H1-H6 tags
+            r'<title[^>]*>(.*?)</title>',     # Title tag
+            r'<strong[^>]*>(.*?)</strong>',   # Strong/bold text
+            r'<b[^>]*>(.*?)</b>',             # Bold text
+            r'<em[^>]*>(.*?)</em>',           # Emphasized text
+        ]
+        
+        for pattern in heading_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE | re.DOTALL)
+            for match in matches:
+                heading_text = re.sub(r'<[^>]+>', '', match.group(1)).strip()
+                if heading_text and len(heading_text) > 3:
+                    # Extract meaningful phrases from headings
+                    phrases = self._extract_phrases_from_text(heading_text)
+                    for phrase in phrases:
+                        if self._is_meaningful_heading_phrase(phrase):
+                            keywords[phrase.lower()] = 4.0
+        
+        return keywords
+    
+    def _extract_product_service_keywords(self, text: str) -> Dict[str, float]:
+        """Extract product and service-related keywords"""
+        keywords = {}
+        text_lower = text.lower()
+        
+        # Product/service patterns with higher specificity
+        product_patterns = [
+            r'\b(\w+(?:\s+\w+){0,2})\s+(?:tools?|equipment|supplies?|products?)\b',
+            r'\b(\w+(?:\s+\w+){0,2})\s+(?:systems?|solutions?|services?)\b',
+            r'\b(\w+(?:\s+\w+){0,2})\s+(?:machines?|devices?|instruments?)\b',
+            r'\b(\w+(?:\s+\w+){0,2})\s+(?:kits?|sets?|collections?)\b',
+            r'\b(?:professional|commercial|industrial)\s+(\w+(?:\s+\w+){0,2})\b',
+            r'\b(\w+)\s+(?:saw|drill|router|lathe|planer|sander)\b',
+            r'\b(\w+)\s+(?:collection|storage|organization)\b'
+        ]
+        
+        for pattern in product_patterns:
+            matches = re.finditer(pattern, text_lower)
+            for match in matches:
+                term = match.group(1).strip()
+                if (len(term) >= 3 and 
+                    term not in self.stop_words and 
+                    not self._is_generic_filler(term)):
+                    
+                    full_phrase = match.group(0).strip()
+                    keywords[full_phrase] = 3.5
+                    if len(term.split()) >= 2:
+                        keywords[term] = 2.5
+        
+        return keywords
+    
+    def _extract_quality_noun_phrases(self, text: str) -> Dict[str, float]:
+        """Extract high-quality noun phrases using advanced NLP"""
+        keywords = {}
+        
+        try:
+            # Clean text for better processing
+            clean_text = re.sub(r'<[^>]+>', ' ', text)
+            clean_text = re.sub(r'[^\w\s\-]', ' ', clean_text)
+            clean_text = re.sub(r'\s+', ' ', clean_text)
+            
+            # Tokenize and POS tag
+            tokens = word_tokenize(clean_text.lower())
+            pos_tags = pos_tag(tokens)
+            
+            # Extract noun phrases with specific patterns
+            current_phrase = []
+            
+            for i, (word, pos) in enumerate(pos_tags):
+                # Include nouns, adjectives, and some verbs in gerund form
+                if (pos.startswith(('NN', 'JJ')) or 
+                    (pos == 'VBG' and word.endswith('ing')) or
+                    word in ['dust', 'power', 'hand', 'wood', 'metal']):
+                    
+                    if (word not in self.stop_words and 
+                        len(word) >= 3 and 
+                        not word.isdigit()):
+                        current_phrase.append(word)
+                else:
+                    # End of phrase - evaluate it
+                    if len(current_phrase) >= 2:
+                        phrase = ' '.join(current_phrase)
+                        if self._is_valuable_noun_phrase(phrase):
+                            keywords[phrase] = len(current_phrase) * 1.5
+                    current_phrase = []
+            
+            # Handle final phrase
+            if len(current_phrase) >= 2:
+                phrase = ' '.join(current_phrase)
+                if self._is_valuable_noun_phrase(phrase):
+                    keywords[phrase] = len(current_phrase) * 1.5
+        
+        except Exception as e:
+            logging.warning(f"Error in noun phrase extraction: {e}")
+        
+        return keywords
+    
+    def _extract_phrases_from_text(self, text: str) -> List[str]:
+        """Extract meaningful phrases from text"""
+        phrases = []
+        
+        # Split by common delimiters
+        parts = re.split(r'[,;:\-\|]+', text)
+        
+        for part in parts:
+            part = part.strip()
+            if len(part) >= 5 and not self._is_generic_filler(part):
+                # Extract 2-4 word phrases
+                words = part.split()
+                for i in range(len(words)):
+                    for j in range(i + 2, min(i + 5, len(words) + 1)):
+                        phrase = ' '.join(words[i:j])
+                        if self._is_meaningful_phrase(phrase):
+                            phrases.append(phrase)
+        
+        return phrases
+    
+    def _is_meaningful_heading_phrase(self, phrase: str) -> bool:
+        """Check if a phrase from headings is meaningful"""
+        phrase_lower = phrase.lower().strip()
+        
+        # Must be substantial
+        if len(phrase_lower) < 5 or len(phrase_lower.split()) < 2:
+            return False
+        
+        # Avoid generic heading text
+        generic_headings = {
+            'welcome to', 'about us', 'contact us', 'our services', 'our products',
+            'home page', 'main menu', 'click here', 'learn more', 'get started',
+            'sign up', 'log in', 'follow us', 'subscribe now'
+        }
+        
+        for generic in generic_headings:
+            if generic in phrase_lower:
+                return False
+        
+        # Should contain meaningful terms
+        valuable_indicators = [
+            'tool', 'equipment', 'service', 'product', 'system', 'collection',
+            'professional', 'commercial', 'industrial', 'woodworking', 'metal',
+            'craft', 'workshop', 'shop', 'store', 'supply', 'manufacturer'
+        ]
+        
+        return any(indicator in phrase_lower for indicator in valuable_indicators)
+    
+    def _is_valuable_noun_phrase(self, phrase: str) -> bool:
+        """Check if a noun phrase is valuable for SEO"""
+        phrase_lower = phrase.lower().strip()
+        words = phrase_lower.split()
+        
+        # Basic quality checks
+        if len(words) < 2 or len(phrase_lower) < 6:
+            return False
+        
+        # Avoid phrases that are mostly stop words
+        stop_word_count = sum(1 for word in words if word in self.stop_words)
+        if stop_word_count > len(words) / 2:
+            return False
+        
+        # Must contain at least one substantial noun
+        substantial_nouns = {
+            'tool', 'tools', 'equipment', 'machine', 'system', 'service', 'product',
+            'collection', 'kit', 'set', 'supply', 'supplies', 'device', 'instrument',
+            'workshop', 'woodworking', 'metalworking', 'crafting', 'manufacturing',
+            'router', 'saw', 'drill', 'lathe', 'planer', 'sander', 'dust', 'power'
+        }
+        
+        has_substantial_noun = any(noun in phrase_lower for noun in substantial_nouns)
+        
+        # Or should be a specific industry term
+        industry_terms = any(word in phrase_lower for word in [
+            'wood', 'metal', 'craft', 'professional', 'commercial', 'industrial'
+        ])
+        
+        return has_substantial_noun or industry_terms
+    
+    def _is_high_quality_keyword(self, keyword: str) -> bool:
+        """Enhanced quality check for keywords"""
+        keyword_lower = keyword.lower().strip()
+        words = keyword_lower.split()
+        
+        # Basic filters
+        if (len(keyword_lower) < 3 or 
+            keyword_lower.isdigit() or
+            not re.match(r'^[a-zA-Z0-9\s\-]+$', keyword)):
+            return False
+        
+        # Single words must be substantial
+        if len(words) == 1:
+            if (len(keyword_lower) < 5 or 
+                keyword_lower in self.stop_words or
+                self._is_generic_filler(keyword)):
+                return False
+        
+        # Multi-word phrases should be meaningful
+        if len(words) >= 2:
+            # Check for too many stop words
+            stop_count = sum(1 for word in words if word in self.stop_words)
+            if stop_count > len(words) / 2:
+                return False
+        
+        # Must not be a weak fragment
+        return not self._is_weak_fragment(keyword)
+    
+    def _is_weak_fragment(self, keyword: str) -> bool:
+        """Check if keyword is a weak grammatical fragment"""
+        keyword_lower = keyword.lower().strip()
+        
+        # Common weak fragments to avoid
+        weak_patterns = [
+            r'^(find|to|the|and|or|but|with|for|from|through|walk|you)\s',
+            r'\s(to|the|and|or|but|with|for|from|through|you)$',
+            r'^(create|make|get|take|give|put|set)\s',
+            r'(ing|ed|er|est)$',  # Avoid single word endings
+        ]
+        
+        for pattern in weak_patterns:
+            if re.search(pattern, keyword_lower):
+                return True
+        
+        # Avoid incomplete phrases
+        incomplete_phrases = {
+            'find your', 'to create', 'walk you', 'through the', 'get the',
+            'make your', 'take the', 'give you', 'put the', 'set up',
+            'how to', 'what is', 'why you', 'when you', 'where to'
+        }
+        
+        return keyword_lower in incomplete_phrases
+    
+    def _apply_final_scoring(self, keywords: Dict[str, float], text: str, url: str) -> Dict[str, float]:
+        """Apply final scoring algorithm to keywords"""
+        scored_keywords = {}
+        text_lower = text.lower()
+        text_length = len(text.split())
+        
+        for keyword, base_score in keywords.items():
+            score = base_score
+            keyword_lower = keyword.lower()
+            
+            # Frequency scoring (optimal 1-3% of content)
+            frequency = text_lower.count(keyword_lower)
+            if frequency > 0:
+                frequency_ratio = frequency / text_length * 100
+                if 0.5 <= frequency_ratio <= 3.0:
+                    score *= 1.3
+                elif frequency_ratio > 5.0:
+                    score *= 0.6  # Penalize over-optimization
+            
+            # Word count bonus for specific ranges
+            word_count = len(keyword.split())
+            if word_count == 2:
+                score *= 1.4  # Sweet spot for SEO
+            elif word_count == 3:
+                score *= 1.2
+            elif word_count >= 4:
+                score *= 0.9  # Too long
+            
+            # Commercial intent bonus
+            if self._has_commercial_intent(keyword):
+                score *= 1.5
+            
+            # Technical/specific term bonus
+            if self._is_technical_or_specific(keyword):
+                score *= 1.3
+            
+            scored_keywords[keyword] = score
+        
+        return scored_keywords
+    
+    def _is_technical_or_specific(self, keyword: str) -> bool:
+        """Check if keyword is technical or industry-specific"""
+        keyword_lower = keyword.lower()
+        
+        # Technical tool terms
+        technical_terms = {
+            'router', 'lathe', 'planer', 'jointer', 'bandsaw', 'tablesaw',
+            'dust collection', 'woodturning', 'dovetail', 'mortise', 'tenon',
+            'carbide', 'diamond', 'spiral', 'flush trim', 'bearing guided'
+        }
+        
+        # Check for technical patterns
+        technical_patterns = [
+            r'\w+saw\b', r'\w+drill\b', r'\w+router\b', r'\w+lathe\b',
+            r'\w+turning\b', r'\w+working\b', r'\w+craft\b'
+        ]
+        
+        # Direct technical term match
+        if any(term in keyword_lower for term in technical_terms):
+            return True
+        
+        # Pattern match
+        for pattern in technical_patterns:
+            if re.search(pattern, keyword_lower):
+                return True
+        
+        return False
+    
+    def _enhanced_fallback_extraction(self, text: str, max_keywords: int) -> List[str]:
+        """Enhanced fallback with better phrase extraction"""
+        try:
+            # Remove HTML and normalize
+            clean_text = re.sub(r'<[^>]+>', ' ', text)
+            clean_text = re.sub(r'[^\w\s\-]', ' ', clean_text)
+            
+            # Extract phrases and single words
+            phrases = []
+            
+            # Split into sentences and extract phrases
+            sentences = re.split(r'[.!?]+', clean_text)
+            for sentence in sentences:
+                words = sentence.lower().split()
+                
+                # Extract 2-3 word phrases
+                for i in range(len(words) - 1):
+                    phrase = f"{words[i]} {words[i+1]}"
+                    if (len(phrase) > 6 and 
+                        not any(stop in phrase for stop in ['the ', 'and ', 'or ']) and
+                        not self._is_weak_fragment(phrase)):
+                        phrases.append(phrase)
+                    
+                    # Try 3-word phrases
+                    if i < len(words) - 2:
+                        phrase3 = f"{words[i]} {words[i+1]} {words[i+2]}"
+                        if (len(phrase3) > 10 and
+                            not self._is_weak_fragment(phrase3)):
+                            phrases.append(phrase3)
+            
+            # Score and filter phrases
+            phrase_scores = {}
+            for phrase in phrases:
+                if self._is_high_quality_keyword(phrase):
+                    phrase_scores[phrase] = clean_text.lower().count(phrase.lower())
+            
+            # Return top phrases
+            return [phrase for phrase, score in 
+                   sorted(phrase_scores.items(), key=lambda x: x[1], reverse=True)[:max_keywords]]
+        
+        except Exception as e:
+            logging.error(f"Enhanced fallback failed: {e}")
+            return []
+    
     def _fallback_extraction(self, text: str, max_keywords: int) -> List[str]:
         """Enhanced fallback keyword extraction method"""
         try:
@@ -706,19 +1043,23 @@ class AIKeywordExtractor:
 
 # Test function
 def test_ai_extraction():
-    """Test the AI keyword extractor"""
+    """Test the AI keyword extractor with woodcraft example"""
     extractor = AIKeywordExtractor()
     
     test_text = """
-    Welcome to TechSolutions, a leading software development company specializing in 
-    artificial intelligence and machine learning solutions. We provide cutting-edge 
-    cloud computing services, data analytics platforms, and custom software development 
-    for enterprise clients. Our team of experienced developers and data scientists 
-    work with Python, JavaScript, and modern frameworks to deliver scalable solutions.
+    <h1>Woodcraft - Quality Woodworking Tools & Supplies</h1>
+    <h2>Router Jigs & Templates</h2>
+    Welcome to Woodcraft, your premier destination for woodworking tools and supplies. 
+    We offer professional router jigs, dovetail saws, dust collection systems, and 
+    woodturning lathes. Our woodcraft store features power carving tools, hand tools, 
+    and workshop equipment for serious woodworkers. Find router bits, saw blades, 
+    and premium lumber for your next project.
+    <strong>Professional Dust Collection Systems</strong>
+    <b>Woodturning Lathe Collection</b>
     """
     
-    keywords = extractor.extract_keywords(test_text, "https://techsolutions.com/services")
-    print(f"Extracted keywords: {keywords}")
+    keywords = extractor.extract_keywords(test_text, "https://woodcraft.com", 10)
+    print(f"Enhanced AI-extracted keywords: {keywords}")
     return keywords
 
 if __name__ == "__main__":
