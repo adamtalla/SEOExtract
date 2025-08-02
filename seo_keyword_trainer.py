@@ -116,41 +116,55 @@ class SEOKeywordTrainer:
         good_score = 0.0
         bad_score = 0.0
         
-        # Score based on individual words
+        # Enhanced word-level scoring with more sophisticated weighting
         for word in words:
             if len(word) >= 3:
                 good_prob = self._calculate_word_probability(word, 'good')
                 bad_prob = self._calculate_word_probability(word, 'bad')
-                good_score += good_prob
-                bad_score += bad_prob
+                
+                # Weight words by length and importance
+                word_weight = min(2.0, len(word) / 5.0)  # Longer words get more weight
+                good_score += good_prob * word_weight
+                bad_score += bad_prob * word_weight
         
-        # Score based on patterns
+        # Enhanced pattern scoring with confidence intervals
         for i in range(len(words) - 1):
             bigram = f"{words[i]} {words[i+1]}"
             good_prob = self._calculate_pattern_probability(bigram, 'good')
             bad_prob = self._calculate_pattern_probability(bigram, 'bad')
-            good_score += good_prob * 2  # Weight patterns more heavily
-            bad_score += bad_prob * 2
+            
+            # Apply confidence weighting based on training data size
+            confidence = min(1.0, (self.total_good + self.total_bad) / 100.0)
+            good_score += good_prob * 2.5 * confidence
+            bad_score += bad_prob * 2.5 * confidence
             
             if i < len(words) - 2:
                 trigram = f"{words[i]} {words[i+1]} {words[i+2]}"
                 good_prob = self._calculate_pattern_probability(trigram, 'good')
                 bad_prob = self._calculate_pattern_probability(trigram, 'bad')
-                good_score += good_prob * 3  # Weight longer patterns even more
-                bad_score += bad_prob * 3
+                good_score += good_prob * 3.5 * confidence
+                bad_score += bad_prob * 3.5 * confidence
         
-        # Score based on structural features
+        # Enhanced structural scoring
         structural_good, structural_bad = self._calculate_structural_scores(keyword_lower)
-        good_score += structural_good
-        bad_score += structural_bad
+        good_score += structural_good * 1.5
+        bad_score += structural_bad * 1.5
         
-        # Convert to probability (0-1 range)
+        # Semantic pattern scoring for better accuracy
+        semantic_good, semantic_bad = self._calculate_semantic_scores(keyword_lower)
+        good_score += semantic_good
+        bad_score += semantic_bad
+        
+        # Convert to probability with smoothing
         total_score = good_score + bad_score
         if total_score == 0:
             return 0.5  # Neutral if no patterns match
         
-        final_score = good_score / total_score
-        return max(0.0, min(1.0, final_score))  # Clamp to 0-1 range
+        # Apply sigmoid function for smoother probability distribution
+        raw_ratio = good_score / total_score
+        final_score = 1 / (1 + math.exp(-10 * (raw_ratio - 0.5)))
+        
+        return max(0.0, min(1.0, final_score))
     
     def _calculate_word_probability(self, word: str, label: str) -> float:
         """Calculate probability of a word being good/bad"""
@@ -217,21 +231,106 @@ class SEOKeywordTrainer:
         
         return good_structural, bad_structural
     
+    def _calculate_semantic_scores(self, keyword: str) -> Tuple[float, float]:
+        """Calculate semantic scores based on advanced pattern recognition"""
+        good_semantic = 0.0
+        bad_semantic = 0.0
+        
+        # Advanced semantic patterns for good keywords
+        good_semantic_patterns = [
+            # Service-oriented patterns
+            (r'\b\w+\s+(?:services?|solutions?|repair|installation|maintenance)\b', 2.0),
+            (r'\b(?:professional|certified|licensed|experienced)\s+\w+', 1.8),
+            (r'\b(?:emergency|24\s*hour|same\s*day|fast|quick)\s+\w+', 1.9),
+            
+            # Product-oriented patterns
+            (r'\b(?:best|top|quality|premium)\s+\w+(?:\s+\w+)*\b', 1.5),
+            (r'\b\w+\s+(?:tools?|equipment|systems?|supplies?)\b', 1.7),
+            
+            # Location-based patterns
+            (r'\b\w+\s+(?:near\s+me|in\s+\w+|area|local)\b', 1.6),
+            
+            # Educational/informational patterns
+            (r'\bhow\s+to\s+\w+(?:\s+\w+)*\b', 1.4),
+            (r'\b(?:guide|tutorial|tips|course)\s+(?:for|to)\s+\w+', 1.3),
+            
+            # Commercial intent patterns
+            (r'\b(?:buy|purchase|order|hire|book)\s+\w+', 1.8),
+            (r'\b(?:affordable|cheap|discount|deal)\s+\w+', 1.5),
+        ]
+        
+        # Advanced semantic patterns for bad keywords
+        bad_semantic_patterns = [
+            # Generic action patterns
+            (r'\b(?:click|find|get|make|take)\s+(?:here|now|today|your|the)\b', 2.5),
+            (r'\bwalk\s+you\s+through\b', 3.0),
+            (r'\b(?:to|the|and|or|but)\s+\w+\s*$', 2.0),
+            
+            # Spam/promotional patterns
+            (r'\b(?:guaranteed|instant|miracle|secret|breakthrough)\b', 3.0),
+            (r'\b(?:amazing|incredible|shocking|unbelievable)\s+\w+', 2.8),
+            (r'\b(?:act\s+now|limited\s+time|special\s+offer|exclusive)\b', 2.9),
+            
+            # Weak fragments
+            (r'^\w+\s+(?:ing|ed|er|est)$', 2.2),
+            (r'\b(?:buy\s+now|click\s+here|sign\s+up|free\s+trial)\b', 2.7),
+            
+            # Overly generic terms
+            (r'\b(?:best\s+price|lowest\s+rate|cheap\s+and|easy\s+money)\b', 2.5),
+        ]
+        
+        # Score against good patterns
+        for pattern, weight in good_semantic_patterns:
+            if re.search(pattern, keyword, re.IGNORECASE):
+                good_semantic += weight * (self.total_good / max(self.total_good + self.total_bad, 1))
+        
+        # Score against bad patterns
+        for pattern, weight in bad_semantic_patterns:
+            if re.search(pattern, keyword, re.IGNORECASE):
+                bad_semantic += weight * (self.total_bad / max(self.total_good + self.total_bad, 1))
+        
+        return good_semantic, bad_semantic
+    
     def classify_keyword(self, keyword: str) -> str:
         """Classify a keyword as 'good' or 'bad'"""
         score = self.calculate_keyword_score(keyword)
         return 'good' if score > 0.5 else 'bad'
     
-    def filter_keywords(self, keywords: List[str], threshold: float = 0.6) -> List[str]:
+    def filter_keywords(self, keywords: List[str], threshold: float = 0.55) -> List[str]:
         """Filter keywords, keeping only those above the quality threshold"""
         if not self.is_trained:
             return keywords  # Return all if not trained
         
         filtered = []
+        scored_keywords = []
+        
+        # Calculate scores for all keywords
         for keyword in keywords:
             score = self.calculate_keyword_score(keyword)
-            if score >= threshold:
+            scored_keywords.append((keyword, score))
+        
+        # Sort by score to get distribution
+        scored_keywords.sort(key=lambda x: x[1], reverse=True)
+        
+        # Adaptive threshold based on score distribution
+        if len(scored_keywords) > 10:
+            # Use a more permissive threshold for larger datasets
+            scores = [score for _, score in scored_keywords]
+            median_score = scores[len(scores) // 2]
+            adaptive_threshold = max(threshold, median_score * 0.9)
+        else:
+            adaptive_threshold = threshold
+        
+        # Filter using adaptive threshold
+        for keyword, score in scored_keywords:
+            if score >= adaptive_threshold:
                 filtered.append(keyword)
+        
+        # Ensure we return at least some keywords if input was substantial
+        if len(filtered) < max(3, len(keywords) * 0.3) and keywords:
+            # Return top 50% if strict filtering removed too many
+            half_point = len(scored_keywords) // 2
+            filtered = [kw for kw, score in scored_keywords[:half_point]]
         
         return filtered
     
@@ -280,11 +379,25 @@ class SEOKeywordTrainer:
             'good_examples': self.total_good,
             'bad_examples': self.total_bad,
             'is_trained': self.is_trained,
+            'unique_good_words': len(self.good_words),
+            'unique_bad_words': len(self.bad_words),
+            'unique_good_patterns': len(self.good_patterns),
+            'unique_bad_patterns': len(self.bad_patterns),
             'top_good_words': dict(Counter(self.good_words).most_common(10)),
             'top_bad_words': dict(Counter(self.bad_words).most_common(10)),
             'top_good_patterns': dict(Counter(self.good_patterns).most_common(5)),
             'top_bad_patterns': dict(Counter(self.bad_patterns).most_common(5))
         }
+    
+    def reload_training_data(self):
+        """Reload training data from file (useful after adding new examples)"""
+        logging.info("Reloading training data...")
+        self.load_and_train()
+        stats = self.get_training_stats()
+        logging.info(f"Training data reloaded: {stats['total_examples']} total examples")
+        logging.info(f"Good examples: {stats['good_examples']}, Bad examples: {stats['bad_examples']}")
+        logging.info(f"Unique patterns: {stats['unique_good_patterns']} good, {stats['unique_bad_patterns']} bad")
+        return stats
 
 # Global instance
 keyword_trainer = SEOKeywordTrainer()

@@ -139,23 +139,32 @@ class AIKeywordExtractor:
                     candidates.append(keyword)
                     seen.add(keyword_clean)
             
-            # Apply training-based filtering if available
+            # Apply enhanced training-based filtering if available
             if TRAINER_AVAILABLE:
                 try:
                     trainer = get_keyword_trainer()
                     if trainer.is_trained:
+                        # Use more permissive threshold with larger dataset
+                        threshold = 0.35 if trainer.total_good + trainer.total_bad > 500 else 0.4
+                        
                         # Filter and rank using trained model
-                        filtered_candidates = trainer.filter_keywords(candidates, threshold=0.4)
+                        filtered_candidates = trainer.filter_keywords(candidates, threshold=threshold)
                         ranked_candidates = trainer.rank_keywords(filtered_candidates)
                         final_keywords = [kw for kw, score in ranked_candidates[:max_keywords]]
-                        logging.info(f"Applied training-based filtering: {len(candidates)} -> {len(final_keywords)}")
+                        
+                        # Log detailed training stats
+                        stats = trainer.get_training_stats()
+                        logging.info(f"Applied training-based filtering with {stats['total_examples']} examples: {len(candidates)} -> {len(final_keywords)}")
+                        logging.info(f"Training quality: {stats['good_examples']} good, {stats['bad_examples']} bad examples")
                     else:
                         final_keywords = candidates[:max_keywords]
+                        logging.warning("Trainer not properly trained, using fallback")
                 except Exception as e:
                     logging.warning(f"Training-based filtering failed: {e}")
                     final_keywords = candidates[:max_keywords]
             else:
                 final_keywords = candidates[:max_keywords]
+                logging.warning("Trainer not available, using base filtering")
             
             return final_keywords
             
