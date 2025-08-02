@@ -5,6 +5,7 @@ import re
 from typing import List, Dict, Tuple
 from collections import Counter, defaultdict
 import math
+from difflib import SequenceMatcher
 
 class SEOKeywordTrainer:
     """Lightweight AI system to learn and classify SEO keyword patterns"""
@@ -20,6 +21,11 @@ class SEOKeywordTrainer:
         self.total_good = 0
         self.total_bad = 0
         self.is_trained = False
+        
+        # Create lookup dictionaries for exact matching
+        self.keyword_labels = {}  # keyword -> label mapping
+        self.good_keywords_set = set()
+        self.bad_keywords_set = set()
         
         # Load and train on existing data
         self.load_and_train()
@@ -42,13 +48,20 @@ class SEOKeywordTrainer:
             self.total_good = 0
             self.total_bad = 0
             
-            # Train on each example
+            # Train on each example and build lookup dictionaries
             for example in training_data:
                 keyword = example.get('keyword', '').strip().lower()
                 label = example.get('label', '').strip().lower()
                 
                 if keyword and label in ['good', 'bad']:
                     self._train_on_example(keyword, label)
+                    
+                    # Build lookup dictionaries for efficient filtering
+                    self.keyword_labels[keyword] = label
+                    if label == 'good':
+                        self.good_keywords_set.add(keyword)
+                    else:
+                        self.bad_keywords_set.add(keyword)
             
             self.is_trained = True
             logging.info(f"Training complete: {self.total_good} good, {self.total_bad} bad examples")
@@ -389,6 +402,87 @@ class SEOKeywordTrainer:
             'top_bad_patterns': dict(Counter(self.bad_patterns).most_common(5))
         }
     
+    def get_fuzzy_match_score(self, keyword1: str, keyword2: str) -> float:
+        """Calculate similarity score between two keywords using fuzzy matching"""
+        return SequenceMatcher(None, keyword1.lower(), keyword2.lower()).ratio()
+    
+    def find_similar_keyword(self, keyword: str, threshold: float = 0.85) -> Tuple[str, str]:
+        """Find similar keyword in training data using fuzzy matching"""
+        keyword_lower = keyword.lower()
+        best_match = None
+        best_score = 0.0
+        best_label = None
+        
+        # Check against all training keywords
+        for training_keyword, label in self.keyword_labels.items():
+            score = self.get_fuzzy_match_score(keyword_lower, training_keyword)
+            if score >= threshold and score > best_score:
+                best_score = score
+                best_match = training_keyword
+                best_label = label
+        
+        return best_match, best_label
+    
+    def get_keyword_label_direct(self, keyword: str, use_fuzzy: bool = True) -> str:
+        """Get direct label for keyword with optional fuzzy matching"""
+        keyword_lower = keyword.lower().strip()
+        
+        # Try exact match first
+        if keyword_lower in self.keyword_labels:
+            return self.keyword_labels[keyword_lower]
+        
+        # Try fuzzy matching if enabled
+        if use_fuzzy:
+            similar_keyword, label = self.find_similar_keyword(keyword_lower, threshold=0.85)
+            if similar_keyword and label:
+                return label
+        
+        return 'unknown'
+    
+    def score_keyword_direct(self, keyword: str, use_fuzzy: bool = True) -> int:
+        """Score keyword directly: +1 for good, -1 for bad, 0 for unknown"""
+        label = self.get_keyword_label_direct(keyword, use_fuzzy)
+        
+        if label == 'good':
+            return 1
+        elif label == 'bad':
+            return -1
+        else:
+            return 0
+    
+    def filter_keywords_direct(self, keywords: List[str], remove_bad: bool = True, use_fuzzy: bool = True) -> List[str]:
+        """Filter keywords by removing bad ones and keeping good/unknown ones"""
+        if not self.is_trained:
+            return keywords
+        
+        filtered_keywords = []
+        
+        for keyword in keywords:
+            label = self.get_keyword_label_direct(keyword, use_fuzzy)
+            
+            if remove_bad and label == 'bad':
+                continue  # Skip bad keywords
+            
+            filtered_keywords.append(keyword)
+        
+        return filtered_keywords
+    
+    def score_and_sort_keywords(self, keywords: List[str], use_fuzzy: bool = True) -> List[Tuple[str, int]]:
+        """Score keywords and return them sorted by score (highest first)"""
+        scored_keywords = []
+        
+        for keyword in keywords:
+            score = self.score_keyword_direct(keyword, use_fuzzy)
+            # Also factor in the AI-based probability score
+            ai_score = self.calculate_keyword_score(keyword)
+            # Combine direct score with AI score (weighted)
+            combined_score = score * 0.7 + (ai_score - 0.5) * 2 * 0.3  # Normalize AI score to -1 to +1 range
+            scored_keywords.append((keyword, combined_score))
+        
+        # Sort by score (highest first)
+        scored_keywords.sort(key=lambda x: x[1], reverse=True)
+        return scored_keywords
+    
     def reload_training_data(self):
         """Reload training data from file (useful after adding new examples)"""
         logging.info("Reloading training data...")
@@ -397,6 +491,24 @@ class SEOKeywordTrainer:
         logging.info(f"Training data reloaded: {stats['total_examples']} total examples")
         logging.info(f"Good examples: {stats['good_examples']}, Bad examples: {stats['bad_examples']}")
         logging.info(f"Unique patterns: {stats['unique_good_patterns']} good, {stats['unique_bad_patterns']} bad")
+        return stats
+    
+    def get_filtering_stats(self, keywords: List[str]) -> Dict:
+        """Get detailed statistics about keyword filtering"""
+        if not keywords:
+            return {'total': 0, 'good': 0, 'bad': 0, 'unknown': 0}
+        
+        stats = {'total': len(keywords), 'good': 0, 'bad': 0, 'unknown': 0}
+        
+        for keyword in keywords:
+            label = self.get_keyword_label_direct(keyword, use_fuzzy=True)
+            if label == 'good':
+                stats['good'] += 1
+            elif label == 'bad':
+                stats['bad'] += 1
+            else:
+                stats['unknown'] += 1
+        
         return stats
 
 # Global instance

@@ -144,18 +144,22 @@ class AIKeywordExtractor:
                 try:
                     trainer = get_keyword_trainer()
                     if trainer.is_trained:
-                        # Use more permissive threshold with larger dataset
-                        threshold = 0.35 if trainer.total_good + trainer.total_bad > 500 else 0.4
+                        # Step 1: Direct filtering to remove bad keywords (fast)
+                        direct_filtered = trainer.filter_keywords_direct(candidates, remove_bad=True, use_fuzzy=True)
                         
-                        # Filter and rank using trained model
-                        filtered_candidates = trainer.filter_keywords(candidates, threshold=threshold)
-                        ranked_candidates = trainer.rank_keywords(filtered_candidates)
-                        final_keywords = [kw for kw, score in ranked_candidates[:max_keywords]]
+                        # Step 2: Score and sort remaining keywords
+                        scored_keywords = trainer.score_and_sort_keywords(direct_filtered, use_fuzzy=True)
                         
-                        # Log detailed training stats
+                        # Step 3: Take top keywords based on combined scoring
+                        final_keywords = [kw for kw, score in scored_keywords[:max_keywords]]
+                        
+                        # Log detailed filtering stats
                         stats = trainer.get_training_stats()
-                        logging.info(f"Applied training-based filtering with {stats['total_examples']} examples: {len(candidates)} -> {len(final_keywords)}")
-                        logging.info(f"Training quality: {stats['good_examples']} good, {stats['bad_examples']} bad examples")
+                        logging.info(f"Applied direct + AI filtering with {stats['total_examples']} examples:")
+                        logging.info(f"  Initial candidates: {len(candidates)}")
+                        logging.info(f"  After direct filtering: {len(direct_filtered)}")
+                        logging.info(f"  Final keywords: {len(final_keywords)}")
+                        logging.info(f"  Training data: {stats['good_examples']} good, {stats['bad_examples']} bad")
                     else:
                         final_keywords = candidates[:max_keywords]
                         logging.warning("Trainer not properly trained, using fallback")
