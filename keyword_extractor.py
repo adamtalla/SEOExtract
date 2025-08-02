@@ -1,145 +1,68 @@
-import yake
 import logging
+from typing import List
+from ai_keyword_extractor import AIKeywordExtractor
 from web_scraper import get_website_text_content
 
+# Initialize the AI extractor globally
+ai_extractor = AIKeywordExtractor()
 
 def extract_keywords_from_text(text, max_keywords=10, headings_products=None):
     """
-    Extract keywords from text using YAKE algorithm
+    Extract keywords from text using AI-powered analysis
     Always returns a list, never raises exceptions
     """
     keywords = []  # Initialize immediately
 
     try:
-        # Check if we have yake
-        import yake
-
         if not text or not isinstance(text, str) or len(text.strip()) < 10:
-            logging.warning(
-                "Text is too short or empty for keyword extraction")
+            logging.warning("Text is too short or empty for keyword extraction")
             return keywords
 
-        # Configure YAKE
-        kw_extractor = yake.KeywordExtractor(lan="en",
-                                             n=3,
-                                             dedupLim=0.3,
-                                             dedupFunc='seqm',
-                                             windowsSize=1,
-                                             top=max_keywords * 2,
-                                             features=None)
+        # Use AI extractor for intelligent keyword extraction
+        keywords = ai_extractor.extract_keywords(text, max_keywords=max_keywords)
 
-        # Extract keywords
-        yake_keywords = kw_extractor.extract_keywords(text)
+        # Apply quality filtering if headings_products provided
+        if headings_products:
+            keywords = filter_keywords_by_context(keywords, headings_products)
+
+        # Ensure we don't exceed max_keywords
+        return keywords[:max_keywords]
+
+    except Exception as e:
+        logging.error(f"Error in AI keyword extraction: {str(e)}")
+        return extract_keywords_fallback(text, max_keywords)
 
 
-        # Advanced filtering logic
-        seen_keywords = set()
-        low_quality_terms = {
-            'loading', 'started', 'click', 'find', 'date', 'template', 'stuff', 'thing', 'content',
-            'page', 'site', 'website', 'main', 'menu', 'contact', 'info', 'details', 'read', 'next',
-            'previous', 'back', 'forward', 'start', 'end', 'top', 'bottom', 'section', 'footer', 'header',
-            'sidebar', 'navigation', 'user', 'account', 'login', 'logout', 'register', 'signup', 'sign',
-            'profile', 'search', 'results', 'result', 'submit', 'form', 'field', 'input', 'output', 'data',
-            'value', 'values', 'number', 'numbers', 'list', 'item', 'items', 'example', 'examples', 'sample',
-            'samples', 'case', 'cases', 'type', 'types', 'day', 'days', 'week', 'weeks', 'month', 'months',
-            'year', 'years', 'buy', 'now', 'best', 'price', 'make', 'money', 'fast', 'work', 'home', 'earn',
-            'free', 'trial', 'special', 'offer', 'instant', 'access', 'credit', 'card', 'limited', 'time',
-            'act', 'miracle', 'secret', 'method', 'product', 'items', 'something', 'object', 'elements',
-            'everything', 'anything', 'feature', 'solution', 'service', 'app', 'tool', 'site', 'place',
-            'password', 'admin', 'root', 'token', 'key', 'api', 'secret', 'test', 'demo', 'fake', 'unknown',
-            'placeholder', 'lorem', 'ipsum', 'dummy', 'sample', 'unknown', 'blah', 'content', 'abc', 'xyz',
-            'randomtext', 'gibberish', '123abc', 'abc123', '0000', '1111', '9999', 'xxx', 'sex', 'hot',
-            'girls', 'porn', 'naked', 'adult', '18+', 'webcam', 'nude', 'escort', 'chat', 'erotic', 'nsfw',
-            'dating', 'singles', '!!!', '???', '$$$', '###', '@@@', '%%%', '^^^', '&&&', '***', '///', '---',
-            '===', '+++', '[[[', ']]]', '(((', ')))', '{{', '}}', ':::', ';;;', '...',
-        }
-        vague_single_words = {'project', 'template', 'tools'}
-        valid_short = {'ai', 'ux', 'seo', 'api', 'css', 'js', 'ux', 'ui'}
-        block_substrings = ["loading", "started", "date", "find", "click", "submit"]
-        import re
-        def is_gibberish(word):
-            if len(set(word)) <= 2:
-                return True
-            if re.fullmatch(r'[a-z]{4,}', word) and sum(1 for c in word if c in 'aeiou') < 1:
-                return True
-            if re.fullmatch(r'(.)\1{2,}', word):
-                return True
-            return False
-
-        def is_incomplete_verb_phrase(phrase):
-            # e.g. "router to create", "start to", "try to", "or"/"to" mid-phrase
-            words = phrase.lower().split()
-            if len(words) >= 2:
-                if words[0] in {'start', 'try', 'use', 'find', 'click', 'submit', 'make', 'get', 'set', 'go', 'run', 'build', 'create', 'add', 'remove', 'update', 'delete', 'edit', 'open', 'close', 'move', 'change', 'select', 'choose', 'show', 'hide', 'enable', 'disable', 'install', 'uninstall', 'download', 'upload', 'save', 'load', 'import', 'export', 'search', 'filter', 'sort', 'view', 'see', 'test', 'check', 'verify', 'review', 'plan', 'organize', 'manage', 'setup', 'configure', 'connect', 'disconnect', 'register', 'login', 'logout', 'sign', 'submit', 'apply', 'join', 'leave', 'share', 'invite', 'send', 'receive', 'read', 'write', 'print', 'scan', 'copy', 'paste', 'cut', 'replace', 'merge', 'split', 'sync', 'backup', 'restore', 'reset', 'restart', 'shutdown', 'power', 'charge', 'play', 'pause', 'stop', 'record', 'watch', 'listen', 'speak', 'talk', 'call', 'message', 'email', 'post', 'tweet', 'like', 'follow', 'unfollow', 'subscribe', 'unsubscribe', 'block', 'report', 'flag', 'rate', 'review', 'comment', 'vote', 'support', 'help', 'assist', 'guide', 'teach', 'learn', 'study', 'train', 'practice', 'test', 'debug', 'fix', 'patch', 'update', 'upgrade', 'downgrade', 'install', 'uninstall', 'download', 'upload', 'sync', 'backup', 'restore', 'reset', 'restart', 'shutdown', 'power', 'charge', 'play', 'pause', 'stop', 'record', 'watch', 'listen', 'speak', 'talk', 'call', 'message', 'email', 'post', 'tweet', 'like', 'follow', 'unfollow', 'subscribe', 'unsubscribe', 'block', 'report', 'flag', 'rate', 'review', 'comment', 'vote', 'support', 'help', 'assist', 'guide', 'teach', 'learn', 'study', 'train', 'practice', 'test', 'debug', 'fix', 'patch', 'update', 'upgrade', 'downgrade'}:
-                    # If phrase is just verb + preposition or verb + "to"/"or" + ...
-                    if len(words) < 3:
-                        return True
-                    if words[1] in {'to', 'or'}:
-                        return True
-            # Block if "or" or "to" in the middle and phrase is incomplete
-            if any(w in {'or', 'to'} for w in words[1:-1]):
-                return True
-            return False
-
-        def passes_whitelist(phrase):
-            if not headings_products:
-                return True  # If no whitelist provided, allow all
-            phrase_lower = phrase.lower().strip()
-            for hp in headings_products:
-                if phrase_lower in hp.lower():
-                    return True
-            return False
-
-        for keyword in yake_keywords:
-            try:
-                if isinstance(keyword, tuple) and len(keyword) >= 2:
-                    keyword_text = str(keyword[0]).strip()
-                else:
-                    keyword_text = str(keyword).strip()
-
-                keyword_lower = keyword_text.lower()
-                # Remove numbers, special chars, and filter by rules
-                if (
-                    keyword_lower not in seen_keywords
-                    and keyword_lower not in low_quality_terms
-                    and not keyword_text.isdigit()
-                    and not re.fullmatch(r'\W+', keyword_text)
-                    and not re.fullmatch(r'\d+', keyword_text)
-                    and not is_gibberish(keyword_lower)
-                    and (
-                        (len(keyword_text) > 2)
-                        or (keyword_lower in valid_short)
-                    )
-                    and len(keyword_text.split()) <= 4
-                    and not any(sub in keyword_lower for sub in block_substrings)
-                    and not (len(keyword_text.split()) == 1 and keyword_lower in vague_single_words)
-                    and not is_incomplete_verb_phrase(keyword_text)
-                    and passes_whitelist(keyword_text)
-                ):
-                    keywords.append(keyword_text)
-                    seen_keywords.add(keyword_lower)
-                    if len(keywords) >= max_keywords:
-                        break
-            except Exception as e:
-                logging.error(f"Error processing individual keyword: {str(e)}")
-                continue
+def filter_keywords_by_context(keywords: List[str], context_data: List[str]) -> List[str]:
+    """Filter keywords based on contextual relevance"""
+    if not context_data:
         return keywords
 
-    except ImportError:
-        logging.warning(
-            "YAKE not available, using fallback keyword extraction")
-        return extract_keywords_fallback(text, max_keywords)
-    except Exception as e:
-        logging.error(f"Error in YAKE keyword extraction: {str(e)}")
-        return extract_keywords_fallback(text, max_keywords)
+    filtered_keywords = []
+    context_lower = ' '.join(context_data).lower()
+
+    for keyword in keywords:
+        keyword_lower = keyword.lower()
+
+        # Keep keyword if it appears in context or is semantically related
+        if (keyword_lower in context_lower or
+            any(word in context_lower for word in keyword_lower.split()) or
+            len(keyword.split()) > 1):  # Multi-word keywords are often more specific
+            filtered_keywords.append(keyword)
+
+    # If filtering removed too many keywords, return original list
+    if len(filtered_keywords) < len(keywords) * 0.3:
+        return keywords
+
+    return filtered_keywords
 
 
 def extract_keywords_fallback(text, max_keywords=10, headings_products=None):
     """
-    Fallback keyword extraction without YAKE
+    Enhanced fallback keyword extraction without external dependencies
     Always returns a list, never raises exceptions
     """
-    keywords = []  # Initialize immediately
+    keywords = []
 
     try:
         import re
@@ -148,13 +71,12 @@ def extract_keywords_fallback(text, max_keywords=10, headings_products=None):
         if not text or not isinstance(text, str):
             return keywords
 
-        # Simple text processing
+        # Enhanced text processing
         text = re.sub(r'[^\w\s]', ' ', text.lower())
         words = re.findall(r'\b[a-z]{3,}\b', text)
 
-        # Basic stop words
+        # Comprehensive stop words
         stop_words = {
-            # Standard English stop words
             'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of',
             'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during',
             'before', 'after', 'above', 'below', 'between', 'among', 'within',
@@ -165,124 +87,56 @@ def extract_keywords_fallback(text, max_keywords=10, headings_products=None):
             'get', 'has', 'had', 'have', 'him', 'his', 'her', 'she', 'its',
             'our', 'out', 'you', 'your', 'they', 'them', 'their', 'was',
             'were', 'been', 'being', 'are', 'is', 'it', 'as', 'if', 'do', 'did',
-            'does', 'so', 'not', 'no', 'yes', 'i', 'me', 'my', 'mine', 'we', 'us',
-            'because', 'once', 'over', 'under', 'again', 'off', 'then', 'there',
-            'here', 'also', 'too', 'much', 'many', 'every', 'each', 'per', 'via',
-            'may', 'might', 'must', 'shall', 'would', 'could', 'like', 'even',
-            'made', 'make', 'let', 'see', 'seen', 'used', 'using', 'use', 'want',
-            'needs', 'needed', 'since', 'due', 'yet', 'still', 'however', 'thus',
-            'therefore', 'etc', 'etc.', 'etcetera', 'said', 'says', 'saying',
-            # Web and generic terms
-            'page', 'site', 'website', 'webpage', 'home', 'main', 'menu', 'contact',
-            'info', 'information', 'details', 'click', 'link', 'read', 'more', 'next',
-            'previous', 'back', 'forward', 'start', 'started', 'end', 'top', 'bottom',
-            'section', 'content', 'footer', 'header', 'sidebar', 'navigation', 'user',
-            'account', 'login', 'logout', 'register', 'signup', 'sign', 'profile',
-            'search', 'results', 'result', 'submit', 'form', 'field', 'input', 'output',
-            'data', 'value', 'values', 'number', 'numbers', 'list', 'item', 'items',
-            'example', 'examples', 'sample', 'samples', 'case', 'cases', 'type', 'types',
-            'day', 'days', 'week', 'weeks', 'month', 'months', 'year', 'years',
-            # Add more as needed for your domain
-            # User-provided stop words and phrases
-            'asdf', 'qwerty', 'test', 'example', 'demo', 'fake', 'lorem', 'ipsum', 'dummy', 'sample', 'unknown', 'blah', 'thing', 'stuff', 'content', 'placeholder',
-            'lol', 'omg', 'wtf', 'lmao', 'noob', 'hey', 'hi', 'pls', 'okay', 'ok', 'yeah', 'nah', 'bruh', 'yo', 'dude', 'idk', 'smh', 'yolo', 'chill', 'whatever', 'cool', 'sup',
-            'buy', 'now', 'best', 'price', 'click', 'here', 'make', 'money', 'fast', 'work', 'home', 'earn', 'free', 'trial', 'special', 'offer', 'instant', 'access', 'credit', 'card', 'limited', 'time', 'act', 'miracle', 'secret', 'method',
-            'product', 'items', 'something', 'object', 'elements', 'everything', 'anything', 'feature', 'solution', 'service', 'app', 'tool', 'site', 'place',
-            'abc', 'xyz', 'lkj', 'asdfgh', 'qwertyuiop', 'zxcvbnm', 'bbbb', 'kkkk', 'xxxx', 'yyyy', 'tttt', 'randomtext', 'gibberish', '123abc', 'abc123', '0000', '1111', '9999',
-            'xxx', 'sex', 'hot', 'girls', 'porn', 'naked', 'adult', '18+', 'webcam', 'nude', 'escort', 'chat', 'erotic', 'nsfw', 'dating', 'singles',
-            '!!!', '???', '$$$', '###', '@@@', '%%%', '^^^', '&&&', '***', '///', '---', '===', '+++', '[[[', ']]]', '(((', ')))', '{{', '}}', ':::', ';;;', '...',
-            'password', 'admin', 'login', 'user', 'root', '123456', 'letmein', 'welcome', 'iloveyou', 'token', 'key', 'api', 'secret',
-            # Common short stop words (repeated for completeness)
-            'the', 'is', 'to', 'of', 'and', 'a', 'in', 'on', 'with', 'for', 'from', 'by', 'it', 'be', 'at', 'or', 'as', 'if', 'an', 'not', 'so', 'too',
+            'does', 'so', 'not', 'no', 'yes', 'me', 'my', 'mine', 'we', 'us',
+            # Web-specific terms
+            'page', 'site', 'website', 'home', 'main', 'menu', 'contact',
+            'info', 'details', 'click', 'link', 'read', 'more', 'next',
+            'previous', 'back', 'forward', 'start', 'end', 'section',
+            'content', 'footer', 'header', 'sidebar', 'navigation', 'user',
+            'account', 'login', 'logout', 'register', 'signup', 'profile',
+            'search', 'results', 'result', 'submit', 'form', 'field',
+            'loading', 'started', 'find', 'date', 'template', 'stuff'
         }
 
-        # Advanced filtering logic for fallback
-        low_quality_terms = {
-            'loading', 'started', 'click', 'find', 'date', 'template', 'stuff', 'thing', 'content',
-            'page', 'site', 'website', 'main', 'menu', 'contact', 'info', 'details', 'read', 'next',
-            'previous', 'back', 'forward', 'start', 'end', 'top', 'bottom', 'section', 'footer', 'header',
-            'sidebar', 'navigation', 'user', 'account', 'login', 'logout', 'register', 'signup', 'sign',
-            'profile', 'search', 'results', 'result', 'submit', 'form', 'field', 'input', 'output', 'data',
-            'value', 'values', 'number', 'numbers', 'list', 'item', 'items', 'example', 'examples', 'sample',
-            'samples', 'case', 'cases', 'type', 'types', 'day', 'days', 'week', 'weeks', 'month', 'months',
-            'year', 'years', 'buy', 'now', 'best', 'price', 'make', 'money', 'fast', 'work', 'home', 'earn',
-            'free', 'trial', 'special', 'offer', 'instant', 'access', 'credit', 'card', 'limited', 'time',
-            'act', 'miracle', 'secret', 'method', 'product', 'items', 'something', 'object', 'elements',
-            'everything', 'anything', 'feature', 'solution', 'service', 'app', 'tool', 'site', 'place',
-            'password', 'admin', 'root', 'token', 'key', 'api', 'secret', 'test', 'demo', 'fake', 'unknown',
-            'placeholder', 'lorem', 'ipsum', 'dummy', 'sample', 'unknown', 'blah', 'content', 'abc', 'xyz',
-            'randomtext', 'gibberish', '123abc', 'abc123', '0000', '1111', '9999', 'xxx', 'sex', 'hot',
-            'girls', 'porn', 'naked', 'adult', '18+', 'webcam', 'nude', 'escort', 'chat', 'erotic', 'nsfw',
-            'dating', 'singles', '!!!', '???', '$$$', '###', '@@@', '%%%', '^^^', '&&&', '***', '///', '---',
-            '===', '+++', '[[[', ']]]', '(((', ')))', '{{', '}}', ':::', ';;;', '...',
-        }
-
-        valid_short = {'ai', 'ux', 'seo', 'api', 'css', 'js', 'ux', 'ui'}
-        vague_single_words = {'project', 'template', 'tools'}
-        block_substrings = ["loading", "started", "date", "find", "click", "submit"]
-        def is_gibberish(word):
-            if len(set(word)) <= 2:
-                return True
-            if re.fullmatch(r'[a-z]{4,}', word) and sum(1 for c in word if c in 'aeiou') < 1:
-                return True
-            if re.fullmatch(r'(.)\1{2,}', word):
-                return True
-            return False
-
-        def is_incomplete_verb_phrase(phrase):
-            words = phrase.lower().split()
-            if len(words) >= 2:
-                if words[0] in {'start', 'try', 'use', 'find', 'click', 'submit', 'make', 'get', 'set', 'go', 'run', 'build', 'create', 'add', 'remove', 'update', 'delete', 'edit', 'open', 'close', 'move', 'change', 'select', 'choose', 'show', 'hide', 'enable', 'disable', 'install', 'uninstall', 'download', 'upload', 'save', 'load', 'import', 'export', 'search', 'filter', 'sort', 'view', 'see', 'test', 'check', 'verify', 'review', 'plan', 'organize', 'manage', 'setup', 'configure', 'connect', 'disconnect', 'register', 'login', 'logout', 'sign', 'submit', 'apply', 'join', 'leave', 'share', 'invite', 'send', 'receive', 'read', 'write', 'print', 'scan', 'copy', 'paste', 'cut', 'replace', 'merge', 'split', 'sync', 'backup', 'restore', 'reset', 'restart', 'shutdown', 'power', 'charge', 'play', 'pause', 'stop', 'record', 'watch', 'listen', 'speak', 'talk', 'call', 'message', 'email', 'post', 'tweet', 'like', 'follow', 'unfollow', 'subscribe', 'unsubscribe', 'block', 'report', 'flag', 'rate', 'review', 'comment', 'vote', 'support', 'help', 'assist', 'guide', 'teach', 'learn', 'study', 'train', 'practice', 'test', 'debug', 'fix', 'patch', 'update', 'upgrade', 'downgrade', 'install', 'uninstall', 'download', 'upload', 'sync', 'backup', 'restore', 'reset', 'restart', 'shutdown', 'power', 'charge', 'play', 'pause', 'stop', 'record', 'watch', 'listen', 'speak', 'talk', 'call', 'message', 'email', 'post', 'tweet', 'like', 'follow', 'unfollow', 'subscribe', 'unsubscribe', 'block', 'report', 'flag', 'rate', 'review', 'comment', 'vote', 'support', 'help', 'assist', 'guide', 'teach', 'learn', 'study', 'train', 'practice', 'test', 'debug', 'fix', 'patch', 'update', 'upgrade', 'downgrade'}:
-                    if len(words) < 3:
-                        return True
-                    if words[1] in {'to', 'or'}:
-                        return True
-            if any(w in {'or', 'to'} for w in words[1:-1]):
-                return True
-            return False
-
-        def passes_whitelist(phrase):
-            if not headings_products:
-                return True
-            phrase_lower = phrase.lower().strip()
-            for hp in headings_products:
-                if phrase_lower in hp.lower():
-                    return True
-            return False
-
+        # Filter words
         filtered_words = [
             word for word in words
-            if word not in stop_words
-            and word not in low_quality_terms
-            and (len(word) > 2 or word in valid_short)
-            and not word.isdigit()
-            and not is_gibberish(word)
-            and not re.fullmatch(r'\W+', word)
-            and not re.fullmatch(r'\d+', word)
-            and not any(sub in word for sub in block_substrings)
-            and not (len(word.split()) == 1 and word in vague_single_words)
-            and not is_incomplete_verb_phrase(word)
-            and passes_whitelist(word)
+            if (word not in stop_words and 
+                len(word) >= 3 and 
+                not word.isdigit() and
+                not re.match(r'^(.)\1+$', word))  # Avoid repeated characters
         ]
-        word_counts = Counter(filtered_words)
 
-        keywords = [
-            word for word, count in word_counts.most_common(max_keywords)
-        ]
+        # Calculate word importance based on frequency and position
+        word_scores = {}
+        for i, word in enumerate(filtered_words):
+            # Higher score for words appearing earlier
+            position_weight = max(0.5, 1.0 - (i / len(filtered_words)) * 0.5)
+            word_scores[word] = word_scores.get(word, 0) + position_weight
+
+        # Extract phrases (bigrams)
+        for i in range(len(filtered_words) - 1):
+            phrase = f"{filtered_words[i]} {filtered_words[i+1]}"
+            if len(phrase) > 6:  # Meaningful phrases
+                word_scores[phrase] = word_scores.get(phrase, 0) + 2.0
+
+        # Sort by score and return top keywords
+        sorted_words = sorted(word_scores.items(), key=lambda x: x[1], reverse=True)
+        keywords = [word for word, score in sorted_words[:max_keywords]]
 
         return keywords
 
     except Exception as e:
         logging.error(f"Error in fallback keyword extraction: {str(e)}")
-        return keywords
+        return []
 
 
 def extract_keywords_from_url(url, max_keywords=10, headings_products=None):
     """
-    Extract keywords from a webpage URL
+    Extract keywords from a webpage URL using AI-powered analysis
     Always returns a list, never raises exceptions
     """
-    keywords = []  # Initialize immediately
+    keywords = []
 
     try:
         if not url or not isinstance(url, str):
@@ -295,13 +149,9 @@ def extract_keywords_from_url(url, max_keywords=10, headings_products=None):
 
         logging.info(f"Extracting keywords from: {url}")
 
-        # Try to get text content
+        # Get text content from webpage
         try:
-            from web_scraper import get_website_text_content
             text_content = get_website_text_content(url)
-        except ImportError:
-            logging.error("web_scraper module not available")
-            return get_keywords_with_requests(url, max_keywords)
         except Exception as e:
             logging.error(f"Error getting website text: {str(e)}")
             return get_keywords_with_requests(url, max_keywords)
@@ -310,20 +160,14 @@ def extract_keywords_from_url(url, max_keywords=10, headings_products=None):
             logging.warning(f"Insufficient content from {url}")
             return keywords
 
+        # Use AI-powered extraction with URL context
+        keywords = ai_extractor.extract_keywords(text_content, url=url, max_keywords=max_keywords)
 
-        # Try to extract headings/products for whitelist logic
-        # Placeholder: extract from web_scraper if available, else pass through param
-        extracted_headings_products = None
-        try:
-            from web_scraper import get_website_headings_and_products
-            extracted_headings_products = get_website_headings_and_products(url)
-        except Exception:
-            extracted_headings_products = headings_products
+        # Apply additional filtering if context provided
+        if headings_products:
+            keywords = filter_keywords_by_context(keywords, headings_products)
 
-        # Extract keywords from text with whitelist
-        keywords = extract_keywords_from_text(text_content, max_keywords, headings_products=extracted_headings_products)
-
-        logging.info(f"Extracted {len(keywords)} keywords from {url}")
+        logging.info(f"Extracted {len(keywords)} AI-powered keywords from {url}")
         return keywords
 
     except Exception as e:
@@ -333,18 +177,17 @@ def extract_keywords_from_url(url, max_keywords=10, headings_products=None):
 
 def get_keywords_with_requests(url, max_keywords=10):
     """
-    Fallback method using requests directly
+    Fallback method using requests and AI extraction
     Always returns a list, never raises exceptions
     """
-    keywords = []  # Initialize immediately
+    keywords = []
 
     try:
         import requests
         from bs4 import BeautifulSoup
 
         headers = {
-            'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
 
         response = requests.get(url, headers=headers, timeout=10)
@@ -357,7 +200,12 @@ def get_keywords_with_requests(url, max_keywords=10):
             script.decompose()
 
         text = soup.get_text()
-        keywords = extract_keywords_fallback(text, max_keywords)
+
+        # Use AI extractor even in fallback
+        try:
+            keywords = ai_extractor.extract_keywords(text, url=url, max_keywords=max_keywords)
+        except Exception:
+            keywords = extract_keywords_fallback(text, max_keywords)
 
         return keywords
 
@@ -366,14 +214,21 @@ def get_keywords_with_requests(url, max_keywords=10):
         return keywords
 
 
-# Simple test function
-def test_keyword_extraction():
-    """Test the keyword extraction"""
-    test_text = "This is a test about web development and Python programming. SEO optimization is important for websites."
-    keywords = extract_keywords_from_text(test_text, 5)
-    print(f"Test keywords: {keywords}")
+# Test function
+def test_ai_keyword_extraction():
+    """Test the AI keyword extraction"""
+    test_text = """
+    Welcome to TechCorp, a leading artificial intelligence and machine learning company. 
+    We specialize in deep learning algorithms, neural networks, and natural language processing. 
+    Our data science team develops cutting-edge solutions for enterprise clients using Python, 
+    TensorFlow, and cloud computing platforms. We offer consulting services, custom software 
+    development, and AI model training for businesses looking to leverage artificial intelligence.
+    """
+
+    keywords = extract_keywords_from_text(test_text, 8)
+    print(f"AI-extracted keywords: {keywords}")
     return keywords
 
 
 if __name__ == "__main__":
-    test_keyword_extraction()
+    test_ai_keyword_extraction()

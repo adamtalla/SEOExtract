@@ -1,67 +1,6 @@
-# --- Keyword Quality Filter ---
-import re
-def is_high_quality_keyword(keyword, known_products=None):
-    """
-    Returns True if the keyword is specific, meaningful, and has search intent.
-    Filters out system/generic terms, broken/partial words, vague/standalone verbs/nouns,
-    months/days (unless part of a phrase), numbers, symbols, and nonsense.
-    """
-    if not keyword or not isinstance(keyword, str):
-        return False
-    kw = keyword.strip().lower()
-    if len(kw) < 2:
-        return False
-    # Block system/generic terms
-    generic_terms = {
-        'loading', 'started', 'click', 'date', 'submit', 'find', 'home', 'main', 'page', 'site', 'website',
-        'info', 'details', 'read', 'next', 'previous', 'back', 'forward', 'start', 'end', 'section', 'footer',
-        'header', 'sidebar', 'navigation', 'user', 'account', 'login', 'logout', 'register', 'signup', 'profile',
-        'search', 'results', 'result', 'form', 'field', 'input', 'output', 'data', 'value', 'number', 'list',
-        'item', 'items', 'example', 'sample', 'case', 'type', 'day', 'week', 'month', 'year', 'buy', 'now',
-        'best', 'price', 'make', 'money', 'work', 'free', 'trial', 'offer', 'access', 'credit', 'card', 'time',
-        'product', 'something', 'object', 'elements', 'feature', 'solution', 'service', 'app', 'tool', 'place',
-        'password', 'admin', 'root', 'token', 'key', 'api', 'test', 'demo', 'unknown', 'placeholder', 'content'
-    }
-    if kw in generic_terms:
-        return False
-    # Block broken/partial words
-    if re.fullmatch(r"(’re|ing|ed|ly|ment|tion|ness|less|ful|able|ive|ous|al|ic|est|er|or|en|ize|ise|ate|fy|ward|wise)", kw):
-        return False
-    # Block standalone verbs/vague nouns
-    vague_words = {
-        'create', 'making', 'project', 'tools', 'skills', 'use', 'get', 'set', 'add', 'remove', 'update', 'edit',
-        'open', 'close', 'move', 'change', 'select', 'choose', 'show', 'hide', 'enable', 'disable', 'import', 'export'
-    }
-    if kw in vague_words:
-        return False
-    # Block months/days unless part of a longer phrase
-    months_days = {
-        'january','february','march','april','may','june','july','august','september','october','november','december',
-        'monday','tuesday','wednesday','thursday','friday','saturday','sunday'
-    }
-    if kw in months_days and len(keyword.split()) == 1:
-        return False
-    # Block numbers, symbols, or nonsense
-    if kw.isdigit() or re.fullmatch(r'\W+', kw) or re.fullmatch(r'\d+', kw):
-        return False
-    if re.fullmatch(r'[a-z]{4,}', kw) and sum(1 for c in kw if c in 'aeiou') < 1:
-        return False
-    if len(set(kw)) <= 2:
-        return False
-    # Block very short/single words unless in known products/phrases
-    if len(kw.split()) == 1 and len(kw) < 4:
-        if known_products and kw in [p.lower() for p in known_products]:
-            return True
-        return False
-    # Allow if matches known product/brand/heading
-    if known_products:
-        for prod in known_products:
-            if kw in prod.lower():
-                return True
-    # Otherwise, keep if it's a multi-word, specific phrase
-    if len(kw.split()) > 1 and len(kw) > 4:
-        return True
-    return False
+# --- AI-Powered Keyword Extraction ---
+# The keyword quality filtering is now handled by the AI keyword extractor
+# which uses semantic analysis and NLP techniques for better results
 import os
 # Load environment variables from .env at the very top
 try:
@@ -192,10 +131,10 @@ def get_user_from_session():
 def get_user_usage(user_id):
     """Get user's current month usage from Supabase"""
     current_month = datetime.now().strftime('%Y-%m')
-    
+
     if not user_id or user_id == 'guest':
         return {'audits_used': 0, 'month': current_month}
-    
+
     # Try to get usage from Supabase
     if SUPABASE_URL and SUPABASE_KEY:
         try:
@@ -219,7 +158,7 @@ def get_user_usage(user_id):
                 return {'audits_used': 0, 'month': current_month}
         except Exception as e:
             logging.error(f"Error getting user usage from Supabase: {str(e)}")
-    
+
     # Fallback to session-based tracking (for backwards compatibility)
     return {
         'audits_used': session.get(f'audits_used_{user_id}_{current_month}', 0),
@@ -245,13 +184,13 @@ def check_usage_limits(user, action='audit'):
         audits_used = usage.get('audits_used', 0)
         audits_limit = limits['audits_per_month']
         remaining = audits_limit - audits_used
-        
+
         logging.info(f"User {user_id} audit check: {audits_used}/{audits_limit} used, {remaining} remaining")
-        
+
         if audits_used >= audits_limit:
             logging.warning(f"User {user_id} has reached audit limit: {audits_used}/{audits_limit}")
             return False, f"You've reached your monthly limit of {audits_limit} audits. Please upgrade your plan."
-        
+
         # Warning when getting close to limit
         if remaining <= 1 and remaining > 0:
             logging.info(f"User {user_id} is close to audit limit: {remaining} remaining")
@@ -263,7 +202,7 @@ def store_search_history(user_id, url, keywords, seo_suggestions, seo_data):
     """Store search history in database"""
     if not user_id or user_id == 'guest':
         return
-        
+
     # Try to store in Supabase
     if SUPABASE_URL and SUPABASE_KEY:
         try:
@@ -276,19 +215,19 @@ def store_search_history(user_id, url, keywords, seo_suggestions, seo_data):
                 'keyword_count': len(keywords) if isinstance(keywords, list) else 0,
                 'created_at': datetime.now().isoformat()
             }
-            
+
             result = supabase_request('POST', 'search_history', history_data)
             if result:
                 logging.info(f"Stored search history for user {user_id}, URL: {url}")
             else:
                 logging.error(f"Failed to store search history for user {user_id}")
-                
+
         except Exception as e:
             logging.error(f"Error storing search history: {str(e)}")
             # Fallback to session storage
             if 'search_history' not in session:
                 session['search_history'] = []
-            
+
             session['search_history'].append({
                 'url': url,
                 'keywords': keywords,
@@ -297,7 +236,7 @@ def store_search_history(user_id, url, keywords, seo_suggestions, seo_data):
                 'keyword_count': len(keywords) if isinstance(keywords, list) else 0,
                 'created_at': datetime.now().isoformat()
             })
-            
+
             # Keep only last 50 searches in session
             if len(session['search_history']) > 50:
                 session['search_history'] = session['search_history'][-50:]
@@ -305,7 +244,7 @@ def store_search_history(user_id, url, keywords, seo_suggestions, seo_data):
         # Session-based storage fallback
         if 'search_history' not in session:
             session['search_history'] = []
-        
+
         session['search_history'].append({
             'url': url,
             'keywords': keywords,
@@ -314,7 +253,7 @@ def store_search_history(user_id, url, keywords, seo_suggestions, seo_data):
             'keyword_count': len(keywords) if isinstance(keywords, list) else 0,
             'created_at': datetime.now().isoformat()
         })
-        
+
         # Keep only last 50 searches in session
         if len(session['search_history']) > 50:
             session['search_history'] = session['search_history'][-50:]
@@ -324,7 +263,7 @@ def get_search_history(user_id):
     """Get user's search history"""
     if not user_id or user_id == 'guest':
         return []
-    
+
     # Try to get from Supabase
     if SUPABASE_URL and SUPABASE_KEY:
         try:
@@ -333,7 +272,7 @@ def get_search_history(user_id):
                 return history
         except Exception as e:
             logging.error(f"Error getting search history from Supabase: {str(e)}")
-    
+
     # Fallback to session
     return session.get('search_history', [])
 
@@ -342,16 +281,16 @@ def increment_usage(user_id, action='audit'):
     """Increment user's usage counter in database"""
     if not user_id or user_id == 'guest':
         return
-        
+
     current_month = datetime.now().strftime('%Y-%m')
-    
+
     # Try to update usage in Supabase
     if SUPABASE_URL and SUPABASE_KEY:
         try:
             # Get current usage
             current_usage = get_user_usage(user_id)
             new_count = current_usage['audits_used'] + 1
-            
+
             # Update the usage record
             update_data = {}
             if action == 'audit':
@@ -360,10 +299,10 @@ def increment_usage(user_id, action='audit'):
                 update_data['exports_used'] = current_usage.get('exports_used', 0) + 1
             elif action == 'api':
                 update_data['api_calls_used'] = current_usage.get('api_calls_used', 0) + 1
-            
+
             # Update existing record or create new one
             existing_usage = supabase_request('GET', f'user_usage?user_id=eq.{user_id}&month=eq.{current_month}')
-            
+
             if existing_usage and len(existing_usage) > 0:
                 # Update existing record
                 supabase_request('PATCH', f'user_usage?user_id=eq.{user_id}&month=eq.{current_month}', update_data)
@@ -378,9 +317,9 @@ def increment_usage(user_id, action='audit'):
                     'api_calls_used': 1 if action == 'api' else 0
                 }
                 supabase_request('POST', 'user_usage', new_usage)
-            
+
             logging.info(f"Updated usage for user {user_id}: {action} count incremented")
-            
+
         except Exception as e:
             logging.error(f"Error updating usage in Supabase: {str(e)}")
             # Fallback to session-based tracking
@@ -403,7 +342,7 @@ def get_user_by_api_key(api_key):
     """Get user data from API key"""
     if not api_key:
         return None
-    
+
     # First try Supabase if available
     if SUPABASE_URL and SUPABASE_KEY:
         try:
@@ -418,7 +357,7 @@ def get_user_by_api_key(api_key):
                 }
         except Exception as e:
             logging.error(f"Error getting user by API key from Supabase: {str(e)}")
-    
+
     # Fallback: Check session-based API keys
     # This is a simplified approach - in production you'd want a proper database
     # For demo purposes, we'll use a basic admin check
@@ -429,7 +368,7 @@ def get_user_by_api_key(api_key):
             'email': ADMIN_EMAIL,
             'plan': 'premium'
         }
-    
+
     return None
 
 
@@ -438,20 +377,20 @@ def api_key_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization', '')
-        
+
         if not auth_header.startswith('Bearer '):
             return jsonify({'error': 'Missing or invalid Authorization header. Use: Authorization: Bearer YOUR_API_KEY'}), 401
-        
+
         api_key = auth_header.replace('Bearer ', '').strip()
         user = get_user_by_api_key(api_key)
-        
+
         if not user:
             return jsonify({'error': 'Invalid API key'}), 401
-        
+
         # Store user in request context
         request.current_user = user
         return f(*args, **kwargs)
-    
+
     return decorated_function
 
 
@@ -679,7 +618,7 @@ def settings():
     user = get_user_from_session()
     plan = user.get('plan', 'free')
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    
+
     return render_template('settings.html',
                            user=user,
                            user_plan=plan,
@@ -701,7 +640,7 @@ def dashboard():
         try:
             # First try to get from session (fallback)
             api_key = session.get(f'api_key_{user["id"]}')
-            
+
             # Then try Supabase if available
             if SUPABASE_URL and SUPABASE_KEY:
                 try:
@@ -714,12 +653,12 @@ def dashboard():
                             session[f'api_key_{user["id"]}'] = api_key
                 except Exception as e:
                     logging.error(f"Error getting API key from Supabase: {str(e)}")
-            
+
             # Generate API key if user doesn't have one
             if not api_key:
                 api_key = generate_api_key()
                 session[f'api_key_{user["id"]}'] = api_key
-                
+
                 # Try to store in Supabase if available
                 if SUPABASE_URL and SUPABASE_KEY:
                     try:
@@ -734,7 +673,7 @@ def dashboard():
                         logging.info("API key stored in session as fallback")
                 else:
                     logging.info(f"Generated new API key for Premium user {user['email']} (session-based)")
-                    
+
         except Exception as e:
             logging.error(f"Error getting/generating API key: {str(e)}")
             # Generate a basic API key as final fallback
@@ -845,7 +784,7 @@ def extract_keywords():
         # Filter for high-quality keywords
         if isinstance(extracted_keywords, list):
             # Optionally, pass known_products/headings here if available
-            keywords = [kw for kw in extracted_keywords if is_high_quality_keyword(kw)]
+            keywords = [kw for kw in extracted_keywords]
         else:
             keywords = []
             logging.warning(
@@ -1067,19 +1006,19 @@ def api_extract_keywords():
         # Generate SEO suggestions using AI analyzer
         seo_suggestions = []
         audit_results = []
-        
+
         if limits['seo_suggestions'] > 0:
             try:
                 from ai_seo_analyzer import AISEOAnalyzer
                 ai_analyzer = AISEOAnalyzer()
                 seo_suggestions = ai_analyzer.generate_hybrid_suggestions(url, seo_data, keywords, plan)
-                
+
                 # Limit suggestions based on plan
                 if isinstance(seo_suggestions, list):
                     seo_suggestions = seo_suggestions[:limits['seo_suggestions']]
                 else:
                     seo_suggestions = []
-                    
+
                 # Also generate audit results
                 from seo_audit import SEOAuditor
                 auditor = SEOAuditor()
@@ -1088,7 +1027,7 @@ def api_extract_keywords():
                     audit_results = audit_results[:limits['seo_suggestions']]
                 else:
                     audit_results = []
-                    
+
             except Exception as seo_error:
                 logging.error(f"Error generating SEO suggestions: {str(seo_error)}")
                 seo_suggestions = []
@@ -1145,30 +1084,30 @@ def export_results(format):
             from reportlab.lib import colors
             from flask import make_response
             import io
-            
+
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
-            
+
             # Container for the 'Flowable' objects
             elements = []
-            
+
             # Define styles
             styles = getSampleStyleSheet()
             title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=18, spaceAfter=30)
             heading_style = ParagraphStyle('CustomHeading', parent=styles['Heading2'], fontSize=14, spaceAfter=12)
-            
+
             # Add title
             elements.append(Paragraph(f"SEO Analysis Report", title_style))
             elements.append(Paragraph(f"URL: {last_url}", styles['Normal']))
             elements.append(Spacer(1, 12))
-            
+
             # Add keywords section
             if last_keywords:
                 elements.append(Paragraph("Keywords Found:", heading_style))
                 keyword_data = []
                 for i, keyword in enumerate(last_keywords, 1):
                     keyword_data.append([str(i), keyword])
-                
+
                 keyword_table = Table(keyword_data, colWidths=[0.5*inch, 4*inch])
                 keyword_table.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.grey),
@@ -1182,7 +1121,7 @@ def export_results(format):
                 ]))
                 elements.append(keyword_table)
                 elements.append(Spacer(1, 12))
-            
+
             # Add SEO suggestions section
             if last_suggestions:
                 elements.append(Paragraph("SEO Suggestions:", heading_style))
@@ -1191,17 +1130,17 @@ def export_results(format):
                     elements.append(Paragraph(f"<b>Type:</b> {suggestion.get('type', 'General')}", styles['Normal']))
                     elements.append(Paragraph(f"<b>Suggestion:</b> {suggestion.get('suggestion', 'No suggestion')}", styles['Normal']))
                     elements.append(Spacer(1, 12))
-            
+
             # Build PDF
             doc.build(elements)
             pdf_data = buffer.getvalue()
             buffer.close()
-            
+
             response = make_response(pdf_data)
             response.headers['Content-Type'] = 'application/pdf'
             response.headers['Content-Disposition'] = f'attachment; filename=seo_report_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.pdf'
             return response
-            
+
         except ImportError:
             # Fallback if reportlab is not available
             flash('PDF generation requires additional packages. Please contact support.', 'warning')
@@ -1276,7 +1215,7 @@ def upgrade_plan(plan):
         # In production, redirect to Stripe Checkout
         # For demo, just update the session and call Supabase function
         session['plan'] = plan
-        
+
         # Call Supabase function to upgrade plan
         if SUPABASE_URL and SUPABASE_KEY:
             try:
@@ -1286,16 +1225,16 @@ def upgrade_plan(plan):
                     'new_plan': plan,
                     'period_end': (datetime.now() + timedelta(days=30)).isoformat()
                 }
-                
+
                 response = supabase_request('POST', 'rpc/upgrade_user_plan', upgrade_data)
                 if response:
                     logging.info(f"Plan upgraded in Supabase for {user.get('email')} to {plan}")
                 else:
                     logging.error(f"Failed to upgrade plan in Supabase for {user.get('email')}")
-                    
+
             except Exception as e:
                 logging.error(f"Error upgrading plan in Supabase: {str(e)}")
-        
+
         flash(f'Successfully upgraded to {plan.title()} plan!', 'success')
     else:
         flash('Invalid plan selected', 'danger')
@@ -1308,11 +1247,11 @@ def upgrade_plan(plan):
 def admin_users():
     """Admin page to manage users (admin only)"""
     user = get_user_from_session()
-    
+
     if not user or user.get('email') != ADMIN_EMAIL:
         flash('Access denied. Admin privileges required.', 'danger')
         return redirect(url_for('dashboard'))
-    
+
     # Get all users from Supabase
     users = []
     if SUPABASE_URL and SUPABASE_KEY:
@@ -1323,7 +1262,7 @@ def admin_users():
         except Exception as e:
             logging.error(f"Error fetching users: {str(e)}")
             flash('Error fetching users from database', 'danger')
-    
+
     return render_template('admin/users.html', users=users, user=user)
 
 
@@ -1334,36 +1273,36 @@ def regenerate_api_key():
     user = get_user_from_session()
     plan = user.get('plan', 'free')
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    
+
     if not limits['api_access']:
         return jsonify({'error': 'API access requires Premium plan'}), 403
-    
+
     try:
         new_api_key = generate_api_key()
-        
+
         # Store in session as fallback if Supabase isn't available
         session[f'api_key_{user["id"]}'] = new_api_key
-        
+
         if SUPABASE_URL and SUPABASE_KEY:
             try:
                 update_data = {
                     'api_key': new_api_key,
                     'updated_at': datetime.now().isoformat()
                 }
-                
+
                 response = supabase_request('PATCH', f'user_profiles?id=eq.{user["id"]}', update_data)
-                
+
                 if response:
                     logging.info(f"API key regenerated in Supabase for user {user['id']}")
                 else:
                     logging.warning(f"Failed to update API key in Supabase, using session fallback")
-                    
+
             except Exception as e:
                 logging.error(f"Error updating API key in Supabase: {str(e)}")
                 logging.info("Using session-based API key storage as fallback")
-        
+
         return jsonify({'api_key': new_api_key, 'success': True})
-        
+
     except Exception as e:
         logging.error(f"Error regenerating API key: {str(e)}")
         return jsonify({'error': f'Failed to regenerate API key: {str(e)}'}), 500
@@ -1375,7 +1314,7 @@ def view_history():
     """View user's search history"""
     user = get_user_from_session()
     history = get_search_history(user['id'])
-    
+
     return render_template('history.html', user=user, history=history)
 
 
@@ -1384,14 +1323,14 @@ def view_history():
 def view_history_detail(history_id):
     """View detailed report from history"""
     user = get_user_from_session()
-    
+
     # Get specific history item
     if SUPABASE_URL and SUPABASE_KEY:
         try:
             history_item = supabase_request('GET', f'search_history?id=eq.{history_id}&user_id=eq.{user["id"]}')
             if history_item and len(history_item) > 0:
                 item = history_item[0]
-                
+
                 return render_template('tool.html',
                                        keywords=item.get('keywords', []),
                                        url=item.get('url', ''),
@@ -1405,7 +1344,7 @@ def view_history_detail(history_id):
                                        from_history=True)
         except Exception as e:
             logging.error(f"Error getting history detail: {str(e)}")
-    
+
     # Fallback to session history
     history = session.get('search_history', [])
     if history_id < len(history):
@@ -1421,7 +1360,7 @@ def view_history_detail(history_id):
                                limits=PLAN_LIMITS.get(user.get('plan', 'free'), PLAN_LIMITS['free']),
                                user_plan=user.get('plan', 'free'),
                                from_history=True)
-    
+
     flash('History item not found', 'error')
     return redirect(url_for('view_history'))
 
@@ -1431,15 +1370,15 @@ def view_history_detail(history_id):
 def admin_change_plan(user_id, new_plan):
     """Admin function to change user plan"""
     user = get_user_from_session()
-    
+
     if not user or user.get('email') != ADMIN_EMAIL:
         flash('Access denied. Admin privileges required.', 'danger')
         return redirect(url_for('dashboard'))
-    
+
     if new_plan not in ['free', 'pro', 'premium']:
         flash('Invalid plan selected', 'danger')
         return redirect(url_for('admin_users'))
-    
+
     # Update plan in Supabase
     if SUPABASE_URL and SUPABASE_KEY:
         try:
@@ -1448,9 +1387,9 @@ def admin_change_plan(user_id, new_plan):
                 'plan': new_plan,
                 'updated_at': datetime.now().isoformat()
             }
-            
+
             response = supabase_request('PATCH', f'user_profiles?id=eq.{user_id}', update_data)
-            
+
             if response:
                 # Log admin action
                 admin_action = {
@@ -1460,15 +1399,15 @@ def admin_change_plan(user_id, new_plan):
                     'details': {'new_plan': new_plan, 'changed_by': 'admin'}
                 }
                 supabase_request('POST', 'admin_actions', admin_action)
-                
+
                 flash(f'User plan successfully changed to {new_plan.title()}', 'success')
             else:
                 flash('Error updating user plan', 'danger')
-                
+
         except Exception as e:
             logging.error(f"Error changing user plan: {str(e)}")
             flash('Error updating user plan', 'danger')
-    
+
     return redirect(url_for('admin_users'))
 
 
@@ -1478,17 +1417,17 @@ def stripe_webhook():
     try:
         payload = request.get_data()
         sig_header = request.headers.get('Stripe-Signature')
-        
+
         # In production, verify the webhook signature
         # event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-        
+
         # For demo, parse the JSON directly
         event_data = request.get_json()
-        
+
         if event_data.get('type') == 'checkout.session.completed':
             session_data = event_data.get('data', {}).get('object', {})
             customer_email = session_data.get('customer_details', {}).get('email')
-            
+
             # Determine plan from amount or metadata
             amount = session_data.get('amount_total', 0)
             if amount == 1000:  # $10.00
@@ -1498,7 +1437,7 @@ def stripe_webhook():
             else:
                 logging.error(f"Unknown payment amount: {amount}")
                 return jsonify({'status': 'error'}), 400
-            
+
             # Upgrade user plan
             if customer_email and SUPABASE_URL and SUPABASE_KEY:
                 try:
@@ -1508,9 +1447,9 @@ def stripe_webhook():
                         'stripe_subscription_id': session_data.get('subscription'),
                         'period_end': (datetime.now() + timedelta(days=30)).isoformat()
                     }
-                    
+
                     response = supabase_request('POST', 'rpc/upgrade_user_plan', upgrade_data)
-                    
+
                     if response:
                         # Log payment
                         payment_data = {
@@ -1520,23 +1459,23 @@ def stripe_webhook():
                             'plan_purchased': plan,
                             'processed_at': datetime.now().isoformat()
                         }
-                        
+
                         # Get user ID first
                         user_data = supabase_request('GET', f'user_profiles?email=eq.{customer_email}&select=id')
                         if user_data and len(user_data) > 0:
                             payment_data['user_id'] = user_data[0]['id']
                             supabase_request('POST', 'payments', payment_data)
-                        
+
                         logging.info(f"Successfully upgraded {customer_email} to {plan}")
                     else:
                         logging.error(f"Failed to upgrade {customer_email} to {plan}")
-                        
+
                 except Exception as e:
                     logging.error(f"Error processing webhook: {str(e)}")
                     return jsonify({'status': 'error'}), 500
-        
+
         return jsonify({'status': 'success'}), 200
-        
+
     except Exception as e:
         logging.error(f"Webhook error: {str(e)}")
         return jsonify({'status': 'error'}), 400

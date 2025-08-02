@@ -1,9 +1,10 @@
 flask
 flask-cors
 trafilatura
-yake
 requests
 gunicorn
+python-dotenv
 beautifulsoup4
-openai
-werkzeug
+reportlab
+nltk
+numpy
