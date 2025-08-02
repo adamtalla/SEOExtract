@@ -1,4 +1,75 @@
+# --- Keyword Quality Filter ---
+import re
+def is_high_quality_keyword(keyword, known_products=None):
+    """
+    Returns True if the keyword is specific, meaningful, and has search intent.
+    Filters out system/generic terms, broken/partial words, vague/standalone verbs/nouns,
+    months/days (unless part of a phrase), numbers, symbols, and nonsense.
+    """
+    if not keyword or not isinstance(keyword, str):
+        return False
+    kw = keyword.strip().lower()
+    if len(kw) < 2:
+        return False
+    # Block system/generic terms
+    generic_terms = {
+        'loading', 'started', 'click', 'date', 'submit', 'find', 'home', 'main', 'page', 'site', 'website',
+        'info', 'details', 'read', 'next', 'previous', 'back', 'forward', 'start', 'end', 'section', 'footer',
+        'header', 'sidebar', 'navigation', 'user', 'account', 'login', 'logout', 'register', 'signup', 'profile',
+        'search', 'results', 'result', 'form', 'field', 'input', 'output', 'data', 'value', 'number', 'list',
+        'item', 'items', 'example', 'sample', 'case', 'type', 'day', 'week', 'month', 'year', 'buy', 'now',
+        'best', 'price', 'make', 'money', 'work', 'free', 'trial', 'offer', 'access', 'credit', 'card', 'time',
+        'product', 'something', 'object', 'elements', 'feature', 'solution', 'service', 'app', 'tool', 'place',
+        'password', 'admin', 'root', 'token', 'key', 'api', 'test', 'demo', 'unknown', 'placeholder', 'content'
+    }
+    if kw in generic_terms:
+        return False
+    # Block broken/partial words
+    if re.fullmatch(r"(’re|ing|ed|ly|ment|tion|ness|less|ful|able|ive|ous|al|ic|est|er|or|en|ize|ise|ate|fy|ward|wise)", kw):
+        return False
+    # Block standalone verbs/vague nouns
+    vague_words = {
+        'create', 'making', 'project', 'tools', 'skills', 'use', 'get', 'set', 'add', 'remove', 'update', 'edit',
+        'open', 'close', 'move', 'change', 'select', 'choose', 'show', 'hide', 'enable', 'disable', 'import', 'export'
+    }
+    if kw in vague_words:
+        return False
+    # Block months/days unless part of a longer phrase
+    months_days = {
+        'january','february','march','april','may','june','july','august','september','october','november','december',
+        'monday','tuesday','wednesday','thursday','friday','saturday','sunday'
+    }
+    if kw in months_days and len(keyword.split()) == 1:
+        return False
+    # Block numbers, symbols, or nonsense
+    if kw.isdigit() or re.fullmatch(r'\W+', kw) or re.fullmatch(r'\d+', kw):
+        return False
+    if re.fullmatch(r'[a-z]{4,}', kw) and sum(1 for c in kw if c in 'aeiou') < 1:
+        return False
+    if len(set(kw)) <= 2:
+        return False
+    # Block very short/single words unless in known products/phrases
+    if len(kw.split()) == 1 and len(kw) < 4:
+        if known_products and kw in [p.lower() for p in known_products]:
+            return True
+        return False
+    # Allow if matches known product/brand/heading
+    if known_products:
+        for prod in known_products:
+            if kw in prod.lower():
+                return True
+    # Otherwise, keep if it's a multi-word, specific phrase
+    if len(kw.split()) > 1 and len(kw) > 4:
+        return True
+    return False
 import os
+# Load environment variables from .env at the very top
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("[WARNING] python-dotenv not installed. .env will not be loaded automatically.")
+
 import logging
 import secrets
 from datetime import datetime, timedelta
@@ -25,6 +96,9 @@ CORS(app)
 # Supabase configuration
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+# Debug print to verify env loading (do not log secrets in production)
+print("[DEBUG] SUPABASE_URL:", SUPABASE_URL)
+print("[DEBUG] SUPABASE_KEY:", "SET" if SUPABASE_KEY else "NOT SET")
 
 # Stripe configuration
 STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
@@ -72,6 +146,7 @@ def supabase_request(method, endpoint, data=None, auth_token=None):
     url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
 
     try:
+        logging.debug(f"Supabase {method} {url} data={data}")
         if method == 'GET':
             response = requests.get(url, headers=headers)
         elif method == 'POST':
@@ -79,18 +154,28 @@ def supabase_request(method, endpoint, data=None, auth_token=None):
         elif method == 'PATCH':
             response = requests.patch(url, headers=headers, json=data)
         else:
-            return None
+            logging.error(f"Supabase request: Unsupported method {method}")
+            return {'error': f'Unsupported method {method}'}
 
+        logging.debug(f"Supabase response: {response.status_code} {response.text}")
         if response.status_code in [200, 201]:
-            return response.json()
+            # If response body is empty, treat as success (common for POST)
+            if not response.text or response.text.strip() == '':
+                return '__SUPABASE_EMPTY_SUCCESS__'
+            try:
+                return response.json()
+            except Exception as e:
+                logging.error(f"Error parsing Supabase JSON: {str(e)}")
+                # If response is empty, treat as success
+                if not response.text or response.text.strip() == '':
+                    return '__SUPABASE_EMPTY_SUCCESS__'
+                return {'error': f'Error parsing JSON: {str(e)}', 'raw': response.text}
         else:
-            logging.error(
-                f"Supabase request failed: {response.status_code} - {response.text}"
-            )
-            return None
+            logging.error(f"Supabase request failed: {response.status_code} - {response.text}")
+            return {'error': f'Supabase request failed', 'status_code': response.status_code, 'response': response.text}
     except Exception as e:
         logging.error(f"Supabase request error: {str(e)}")
-        return None
+        return {'error': f'Exception: {str(e)}'}
 
 
 def get_user_from_session():
@@ -374,58 +459,8 @@ def initialize_new_user(user_id, email, plan='free'):
     """Initialize a new user with their starting audit allowance"""
     if not user_id or not email:
         return False
-        
-    # Don't reinitialize existing users
-    if SUPABASE_URL and SUPABASE_KEY:
-        try:
-            # Check if user profile already exists
-            existing_user = supabase_request('GET', f'user_profiles?id=eq.{user_id}')
-            if existing_user and len(existing_user) > 0:
-                logging.info(f"User {email} already exists, skipping initialization")
-                return True
-                
-            # Create user profile with API key
-            api_key = generate_api_key()
-            user_profile = {
-                'id': user_id,
-                'email': email,
-                'plan': plan,
-                'subscription_status': 'active' if email == ADMIN_EMAIL else 'inactive',
-                'auto_upgrade': True,
-                'api_key': api_key,
-                'created_at': datetime.now().isoformat()
-            }
-            
-            profile_result = supabase_request('POST', 'user_profiles', user_profile)
-            
-            if profile_result:
-                logging.info(f"Created user profile for {email} with plan {plan}")
-                
-                # Initialize usage for current month
-                current_month = datetime.now().strftime('%Y-%m')
-                initial_usage = {
-                    'user_id': user_id,
-                    'month': current_month,
-                    'audits_used': 0,
-                    'keywords_generated': 0,
-                    'exports_used': 0,
-                    'api_calls_used': 0
-                }
-                
-                usage_result = supabase_request('POST', 'user_usage', initial_usage)
-                if usage_result:
-                    logging.info(f"Initialized usage tracking for user {email}")
-                
-                return True
-            else:
-                logging.error(f"Failed to create user profile for {email}")
-                return False
-                
-        except Exception as e:
-            logging.error(f"Error initializing new user {email}: {str(e)}")
-            return False
-    
-    return True  # Return True for fallback mode
+    # This function is now only called from registration, so password is required
+    return True  # No-op, registration handles Supabase now
 
 
 def login_required(f):
@@ -483,31 +518,37 @@ def about():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page and handler"""
+    """Login page and handler (Supabase authentication)"""
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
 
-        # In production, authenticate with Supabase
-        # For demo purposes, create a mock login
         if email and password:
-            # Mock user data
-            user_id = f"user_{hash(email) % 10000}"
-            session['user_id'] = user_id
-            session['email'] = email
+            # Query Supabase for user with this email
+            user_data = None
+            if SUPABASE_URL and SUPABASE_KEY:
+                try:
+                    users = supabase_request('GET', f'user_profiles?email=eq.{email}')
+                    if users and len(users) > 0:
+                        user_data = users[0]
+                except Exception as e:
+                    logging.error(f"Error querying Supabase for login: {str(e)}")
 
-            # Special access for admin user
-            if email == ADMIN_EMAIL:
-                session['plan'] = 'premium'  # Give admin premium access
-                initialize_new_user(user_id, email, 'premium')
-                flash('Welcome back, Admin! Premium access granted.',
-                      'success')
+            if user_data:
+                # Check password (hashed)
+                import hashlib
+                hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+                if str(user_data.get('password', '')) == hashed_pw:
+                    user_id = user_data.get('id')
+                    session['user_id'] = user_id
+                    session['email'] = email
+                    session['plan'] = user_data.get('plan', 'free')
+                    flash('Login successful!', 'success')
+                    return redirect(url_for('dashboard'))
+                else:
+                    flash('Incorrect password. Please try again.', 'danger')
             else:
-                session['plan'] = 'free'  # Default plan
-                initialize_new_user(user_id, email, 'free')
-                flash('Login successful!', 'success')
-
-            return redirect(url_for('dashboard'))
+                flash('No account found with that email.', 'danger')
         else:
             flash('Invalid email or password', 'danger')
 
@@ -522,29 +563,103 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
 
-        # In production, create user in Supabase
-        # For demo purposes, create a mock registration
-        if name and email and password:
-            # Mock user creation
-            user_id = f"user_{hash(email) % 10000}"
+        if not (name and email and password):
+            flash('Please fill in all fields', 'danger')
+            return render_template('register.html')
+
+        # Always create user in Supabase
+        import hashlib
+        hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+        user_id = f"user_{hash(email) % 10000}"
+        plan = 'premium' if email == ADMIN_EMAIL else 'free'
+        user_profile = {
+            'id': user_id,
+            'email': email,
+            'password': hashed_pw,
+            'plan': plan,
+            'subscription_status': 'active' if plan == 'premium' else 'inactive',
+            'auto_upgrade': True,
+            'api_key': generate_api_key(),
+            'created_at': datetime.now().isoformat()
+        }
+
+        # Check if user already exists
+        user_exists = False
+        if SUPABASE_URL and SUPABASE_KEY:
+            try:
+                users = supabase_request('GET', f'user_profiles?email=eq.{email}')
+                if users and len(users) > 0:
+                    user_exists = True
+            except Exception as e:
+                logging.error(f"Error checking user in Supabase: {str(e)}")
+
+        if user_exists:
+            flash('An account with that email already exists. Please log in.', 'warning')
+            return redirect(url_for('login'))
+
+
+
+        # Create user in Supabase
+        created = False
+        supabase_error = None
+        result = None  # Ensure result is always defined
+        if SUPABASE_URL and SUPABASE_KEY:
+            try:
+                result = supabase_request('POST', 'user_profiles', user_profile)
+                logging.debug(f"[REGISTER] Supabase user creation response: {result} (type: {type(result)})")
+                # Treat as success if:
+                # - result is the special empty success marker
+                # - result is None (Supabase returns no content)
+                # - result is a dict and has no 'error'
+                # - result is an empty list (Supabase returns [] on success)
+                # - result is an empty dict
+                if result == '__SUPABASE_EMPTY_SUCCESS__':
+                    created = True
+                elif result is None:
+                    created = True
+                elif (isinstance(result, dict) and not result.get('error')):
+                    created = True
+                elif (isinstance(result, list) and len(result) == 0):
+                    created = True
+                elif (isinstance(result, dict) and len(result) == 0):
+                    created = True
+                else:
+                    supabase_error = result.get('error') if isinstance(result, dict) else str(result)
+                    # Also include status code and response if present
+                    if isinstance(result, dict):
+                        if 'status_code' in result:
+                            supabase_error += f" (status: {result['status_code']})"
+                        if 'response' in result:
+                            supabase_error += f" | response: {result['response']}"
+            except Exception as e:
+                logging.error(f"Error creating user in Supabase: {str(e)}")
+                supabase_error = str(e)
+
+        if created:
             session['user_id'] = user_id
             session['email'] = email
-
-            # Special access for admin user
-            if email == ADMIN_EMAIL:
-                session['plan'] = 'premium'  # Give admin premium access
-                initialize_new_user(user_id, email, 'premium')
-                flash('Welcome! Premium access granted for admin account.',
-                      'success')
-            else:
-                session['plan'] = 'free'
-                initialize_new_user(user_id, email, 'free')
-                flash('Account created successfully! You have 5 free audits to get started.',
-                      'success')
-
+            session['plan'] = plan
+            # Also create initial usage record
+            try:
+                current_month = datetime.now().strftime('%Y-%m')
+                initial_usage = {
+                    'user_id': user_id,
+                    'month': current_month,
+                    'audits_used': 0,
+                    'keywords_generated': 0,
+                    'exports_used': 0,
+                    'api_calls_used': 0
+                }
+                supabase_request('POST', 'user_usage', initial_usage)
+            except Exception as e:
+                logging.error(f"Error creating initial usage in Supabase: {str(e)}")
+            flash('Account created successfully! You have 5 free audits to get started.', 'success')
             return redirect(url_for('dashboard'))
         else:
-            flash('Please fill in all fields', 'danger')
+            logging.error(f"Supabase user creation failed. Supabase error: {supabase_error}. Data: {user_profile}")
+            logging.error(f"Full Supabase response: {result}")
+            flash(f'Error creating account. Please try again. (Supabase error: {supabase_error})', 'danger')
+            return render_template('register.html')
 
     return render_template('register.html')
 
@@ -722,13 +837,15 @@ def extract_keywords():
         # Import here to avoid import errors affecting the whole route
         from keyword_extractor import extract_keywords_from_url
 
+
         # Try keyword extraction
         extracted_keywords = extract_keywords_from_url(
             url, limits['keywords_per_audit'])
 
-        # Ensure we got a list
+        # Filter for high-quality keywords
         if isinstance(extracted_keywords, list):
-            keywords = extracted_keywords
+            # Optionally, pass known_products/headings here if available
+            keywords = [kw for kw in extracted_keywords if is_high_quality_keyword(kw)]
         else:
             keywords = []
             logging.warning(
@@ -1091,76 +1208,62 @@ def export_results(format):
         except Exception as e:
             logging.error(f"Error generating PDF: {str(e)}")
             flash('Error generating PDF report', 'danger')
-    elif format.lower() == 'csv':
-        from flask import make_response
-        import csv
-        import io
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
 
-        output = io.StringIO()
-        writer = csv.writer(output)
+        if name and email and password:
+            # Check if user already exists
+            user_exists = False
+            user_id = None
+            if SUPABASE_URL and SUPABASE_KEY:
+                try:
+                    users = supabase_request('GET', f'user_profiles?email=eq.{email}')
+                    if users and len(users) > 0:
+                        user_exists = True
+                        user_id = users[0].get('id')
+                except Exception as e:
+                    logging.error(f"Error checking user in Supabase: {str(e)}")
 
-        # Export comprehensive data
-        writer.writerow([
-            'Section', 'Type', 'Priority', 'Issue', 'Description', 'Impact',
-            'Recommendation'
-        ])
+            if user_exists:
+                flash('An account with that email already exists. Please log in.', 'warning')
+                return redirect(url_for('login'))
 
-        # Add keywords
-        for i, keyword in enumerate(last_keywords, 1):
-            writer.writerow(
-                ['Keywords', 'Keyword', f'Position {i}', keyword, '', '', ''])
+            # Create user in Supabase
+            import hashlib
+            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+            user_id = f"user_{hash(email) % 10000}"
+            plan = 'premium' if email == ADMIN_EMAIL else 'free'
+            user_profile = {
+                'id': user_id,
+                'email': email,
+                'password': hashed_pw,
+                'plan': plan,
+                'subscription_status': 'active' if plan == 'premium' else 'inactive',
+                'created_at': datetime.now().isoformat()
+            }
+            created = False
+            if SUPABASE_URL and SUPABASE_KEY:
+                try:
+                    result = supabase_request('POST', 'user_profiles', user_profile)
+                    if result:
+                        created = True
+                except Exception as e:
+                    logging.error(f"Error creating user in Supabase: {str(e)}")
 
-        # Add audit results
-        for result in last_audit_results:
-            writer.writerow([
-                'SEO Audit',
-                result.get('type', ''),
-                result.get('priority', ''),
-                result.get('issue', ''),
-                result.get('description', ''),
-                result.get('impact', ''),
-                result.get('recommendation', '')
-            ])
+            if created:
+                session['user_id'] = user_id
+                session['email'] = email
+                session['plan'] = plan
+                flash('Account created successfully! You have 5 free audits to get started.', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Error creating account. Please try again.', 'danger')
+        else:
+            flash('Please fill in all fields', 'danger')
 
-        # Add SEO metadata
-        if last_seo_data:
-            writer.writerow([
-                'Metadata', 'Title', '',
-                last_seo_data.get('title', ''), '', '', ''
-            ])
-            writer.writerow([
-                'Metadata', 'Description', '',
-                last_seo_data.get('description', ''), '', '', ''
-            ])
-            writer.writerow([
-                'Metadata', 'Page Speed', '',
-                str(last_seo_data.get('page_speed_score', 0)), '', '', ''
-            ])
-            writer.writerow([
-                'Metadata', 'Mobile Friendly', '',
-                str(last_seo_data.get('mobile_friendly', False)), '', '', ''
-            ])
-
-        response = make_response(output.getvalue())
-        response.headers['Content-Type'] = 'text/csv'
-        response.headers[
-            'Content-Disposition'] = f'attachment; filename=seo_audit_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.csv'
-        return response
-    elif format.lower() == 'report':
-        # Export detailed text report
-        from seo_audit import SEOAuditor
-        from flask import make_response
-
-        auditor = SEOAuditor()
-        report = auditor.format_audit_report(last_audit_results)
-
-        response = make_response(report)
-        response.headers['Content-Type'] = 'text/plain'
-        response.headers[
-            'Content-Disposition'] = f'attachment; filename=seo_audit_report_{last_url.replace("https://", "").replace("http://", "").replace("/", "_")[:20]}.txt'
-        return response
-
-    return redirect(url_for('tool'))
+    return render_template('register.html')
 
 
 @app.route('/upgrade/<plan>')
