@@ -11,6 +11,14 @@ from nltk.chunk import ne_chunk
 from nltk.stem import WordNetLemmatizer
 import numpy as np
 
+# Import the training system
+try:
+    from seo_keyword_trainer import get_keyword_trainer
+    TRAINER_AVAILABLE = True
+except ImportError:
+    TRAINER_AVAILABLE = False
+    logging.warning("SEO keyword trainer not available")
+
 # Download required NLTK data if not present
 required_nltk_data = [
     ('tokenizers/punkt', 'punkt'),
@@ -121,16 +129,33 @@ class AIKeywordExtractor:
             final_keywords = []
             seen = set()
             
+            # Get all candidates first
+            candidates = []
             for keyword, score in sorted(scored_keywords.items(), key=lambda x: x[1], reverse=True):
-                if len(final_keywords) >= max_keywords:
-                    break
-                
                 keyword_clean = keyword.lower().strip()
                 if (keyword_clean not in seen and 
                     self._is_high_quality_keyword(keyword) and
                     not self._is_weak_fragment(keyword)):
-                    final_keywords.append(keyword)
+                    candidates.append(keyword)
                     seen.add(keyword_clean)
+            
+            # Apply training-based filtering if available
+            if TRAINER_AVAILABLE:
+                try:
+                    trainer = get_keyword_trainer()
+                    if trainer.is_trained:
+                        # Filter and rank using trained model
+                        filtered_candidates = trainer.filter_keywords(candidates, threshold=0.4)
+                        ranked_candidates = trainer.rank_keywords(filtered_candidates)
+                        final_keywords = [kw for kw, score in ranked_candidates[:max_keywords]]
+                        logging.info(f"Applied training-based filtering: {len(candidates)} -> {len(final_keywords)}")
+                    else:
+                        final_keywords = candidates[:max_keywords]
+                except Exception as e:
+                    logging.warning(f"Training-based filtering failed: {e}")
+                    final_keywords = candidates[:max_keywords]
+            else:
+                final_keywords = candidates[:max_keywords]
             
             return final_keywords
             

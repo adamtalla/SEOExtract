@@ -1,3 +1,20 @@
+import yake
+import trafilatura
+import requests
+import logging
+from typing import List, Dict, Optional
+from urllib.parse import urlparse, urljoin
+import time
+import re
+
+# Import training system
+try:
+    from seo_keyword_trainer import get_keyword_trainer
+    TRAINER_AVAILABLE = True
+except ImportError:
+    TRAINER_AVAILABLE = False
+    logging.warning("SEO keyword trainer not available")
+
 import logging
 from typing import List
 from ai_keyword_extractor import AIKeywordExtractor
@@ -226,38 +243,38 @@ def filter_seo_keywords(keywords: List[str], text: str) -> List[str]:
     """Filter keywords for SEO relevance and quality"""
     if not keywords:
         return []
-    
+
     filtered_keywords = []
     text_lower = text.lower()
-    
+
     for keyword in keywords:
         keyword_lower = keyword.lower().strip()
-        
+
         # Skip if too short or contains numbers only
         if len(keyword_lower) < 3 or keyword_lower.isdigit():
             continue
-        
+
         # Check frequency - keyword should appear but not too often
         frequency = text_lower.count(keyword_lower)
         text_length = len(text.split())
         frequency_ratio = frequency / text_length * 100 if text_length > 0 else 0
-        
+
         # Skip if appears too rarely or too frequently (keyword stuffing)
         if frequency_ratio < 0.1 or frequency_ratio > 5.0:
             continue
-        
+
         # Prefer multi-word phrases as they're more specific
         word_count = len(keyword.split())
         if word_count >= 2 or (word_count == 1 and len(keyword) >= 5):
             filtered_keywords.append(keyword)
-    
+
     return filtered_keywords
 
 
 def is_generic_term(keyword: str) -> bool:
     """Check if keyword is too generic for SEO value"""
     keyword_lower = keyword.lower().strip()
-    
+
     # Generic business terms that don't add SEO value
     generic_terms = {
         'welcome', 'about', 'company', 'business', 'team', 'staff', 'people',
@@ -268,21 +285,21 @@ def is_generic_term(keyword: str) -> bool:
         'time', 'years', 'experience', 'quality', 'best', 'great', 'good',
         'excellent', 'amazing', 'perfect', 'professional', 'experienced'
     }
-    
+
     # Single generic words
     if keyword_lower in generic_terms:
         return True
-    
+
     # Generic phrases
     generic_phrases = [
         'call now', 'contact us', 'get started', 'learn more', 'find out',
         'years experience', 'quality service', 'best service', 'great service',
         'professional service', 'call today', 'contact today'
     ]
-    
+
     if keyword_lower in generic_phrases:
         return True
-    
+
     return False
 
 
@@ -314,7 +331,7 @@ def test_ai_keyword_extraction():
     # Test simple extraction
     keywords = extract_keywords_from_text(test_text, 8)
     print(f"Enhanced AI-extracted keywords: {keywords}")
-    
+
     # Test detailed extraction
     try:
         detailed_results = get_detailed_keywords(test_text, "https://nycplumbing.com", 8)
@@ -322,7 +339,7 @@ def test_ai_keyword_extraction():
         print(f"Categories: {set(r.category for r in detailed_results)}")
     except Exception as e:
         print(f"Detailed extraction error: {e}")
-    
+
     return keywords
 
 

@@ -71,6 +71,18 @@ PLAN_LIMITS = {
 # Special access for admin user
 ADMIN_EMAIL = "tall3aadam@gmail.com"
 
+from keyword_extractor import extract_keywords_from_url, get_detailed_keywords
+from seo_analyzer import generate_seo_suggestions
+from seo_audit import SEOAuditor
+
+# Import training system
+try:
+    from seo_keyword_trainer import get_keyword_trainer
+    TRAINER_AVAILABLE = True
+except ImportError:
+    TRAINER_AVAILABLE = False
+    logging.warning("SEO keyword trainer not available")
+
 
 def supabase_request(method, endpoint, data=None, auth_token=None):
     """Make a request to Supabase"""
@@ -833,9 +845,10 @@ def extract_keywords():
                 from seo_audit import SEOAuditor
                 auditor = SEOAuditor()
                 # Ensure keywords_list is properly defined
+```tool_code
                 keywords_list = keywords if isinstance(keywords, list) else []
                 content_text = seo_data.get('content_text', '') if seo_data else ''
-                
+
                 audit_results = auditor.analyze_page(
                     seo_data, keywords_list, content_text)
 
@@ -1481,6 +1494,57 @@ def stripe_webhook():
     except Exception as e:
         logging.error(f"Webhook error: {str(e)}")
         return jsonify({'status': 'error'}), 400
+
+# Add API endpoints for training data
+@app.route('/api/training_data', methods=['GET'])
+@api_key_required
+def get_training_data():
+    """API endpoint to retrieve training data."""
+    if not TRAINER_AVAILABLE:
+        return jsonify({'error': 'Training system unavailable'}), 500
+
+    trainer = get_keyword_trainer()
+    data = trainer.get_training_data()
+    return jsonify(data)
+
+
+@app.route('/api/training_data', methods=['POST'])
+@api_key_required
+def add_training_data():
+    """API endpoint to add new training data."""
+    if not TRAINER_AVAILABLE:
+        return jsonify({'error': 'Training system unavailable'}), 500
+
+    data = request.get_json()
+    if not data or 'keyword' not in data or 'label' not in data:
+        return jsonify({'error': 'Keyword and label are required'}), 400
+
+    keyword = data['keyword']
+    label = data['label']
+
+    trainer = get_keyword_trainer()
+    try:
+        trainer.add_training_data(keyword, label)
+        trainer.save_training_data()  # Persist the changes
+        return jsonify({'message': 'Training data added successfully'}), 201
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/retrain_model', methods=['POST'])
+@api_key_required
+def retrain_model():
+    """API endpoint to manually trigger model retraining."""
+    if not TRAINER_AVAILABLE:
+        return jsonify({'error': 'Training system unavailable'}), 500
+
+    trainer = get_keyword_trainer()
+    try:
+        trainer.retrain_model()
+        return jsonify({'message': 'Model retraining triggered'}), 200
+    except Exception as e:
+        logging.error(f"Error retraining model: {str(e)}")
+        return jsonify({'error': f'Model retraining failed: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
