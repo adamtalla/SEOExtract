@@ -844,8 +844,8 @@ def extract_keywords():
             try:
                 from seo_audit import SEOAuditor
                 auditor = SEOAuditor()
-                # Ensure keywords_list is properly defined - use the extracted keywords
-                keywords_list = keywords if isinstance(keywords, list) else []
+                # Ensure keywords_list is properly defined before use
+                keywords_list= keywords if isinstance(keywords, list) else []
                 content_text = seo_data.get('content_text', '') if seo_data else ''
 
                 audit_results = auditor.analyze_page(

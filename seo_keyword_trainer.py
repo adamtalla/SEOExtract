@@ -309,43 +309,96 @@ class SEOKeywordTrainer:
         score = self.calculate_keyword_score(keyword)
         return 'good' if score > 0.5 else 'bad'
     
-    def filter_keywords(self, keywords: List[str], threshold: float = 0.55) -> List[str]:
-        """Filter keywords, keeping only those above the quality threshold"""
+    def filter_keywords(self, keywords: List[str], threshold: float = 0.60) -> List[str]:
+        """Enhanced filtering with stronger quality control using 600+ training examples"""
         if not self.is_trained:
             return keywords  # Return all if not trained
         
-        filtered = []
-        scored_keywords = []
-        
-        # Calculate scores for all keywords
+        # Step 1: Pre-filter with enhanced quality checks
+        pre_filtered = []
         for keyword in keywords:
-            score = self.calculate_keyword_score(keyword)
-            scored_keywords.append((keyword, score))
+            if self._passes_enhanced_quality_checks(keyword):
+                pre_filtered.append(keyword)
         
-        # Sort by score to get distribution
+        if not pre_filtered:
+            return keywords[:5]  # Fallback to top 5 if all filtered out
+        
+        # Step 2: Apply AI scoring with adaptive threshold
+        scored_keywords = []
+        for keyword in pre_filtered:
+            ai_score = self.calculate_keyword_score(keyword)
+            direct_score = self.score_keyword_direct(keyword, use_fuzzy=True)
+            
+            # Enhanced combined scoring
+            combined_score = ai_score * 0.8 + (direct_score + 1) * 0.5 * 0.2
+            scored_keywords.append((keyword, combined_score))
+        
+        # Sort by combined score
         scored_keywords.sort(key=lambda x: x[1], reverse=True)
         
-        # Adaptive threshold based on score distribution
-        if len(scored_keywords) > 10:
-            # Use a more permissive threshold for larger datasets
-            scores = [score for _, score in scored_keywords]
-            median_score = scores[len(scores) // 2]
-            adaptive_threshold = max(threshold, median_score * 0.9)
-        else:
-            adaptive_threshold = threshold
+        # Step 3: Adaptive threshold with training data confidence
+        confidence_factor = min(1.0, (self.total_good + self.total_bad) / 500.0)  # Scale with training size
+        adaptive_threshold = threshold * (0.8 + 0.2 * confidence_factor)  # Stricter with more data
         
         # Filter using adaptive threshold
+        filtered = []
         for keyword, score in scored_keywords:
             if score >= adaptive_threshold:
                 filtered.append(keyword)
         
-        # Ensure we return at least some keywords if input was substantial
-        if len(filtered) < max(3, len(keywords) * 0.3) and keywords:
-            # Return top 50% if strict filtering removed too many
-            half_point = len(scored_keywords) // 2
-            filtered = [kw for kw, score in scored_keywords[:half_point]]
+        # Step 4: Ensure minimum quality output
+        if len(filtered) < max(2, len(keywords) * 0.2) and scored_keywords:
+            # Take top keywords but ensure they meet minimum direct score
+            for keyword, score in scored_keywords[:max(5, len(keywords) // 3)]:
+                direct_label = self.get_keyword_label_direct(keyword, use_fuzzy=True)
+                if direct_label != 'bad':  # Only add if not explicitly bad
+                    filtered.append(keyword)
+                    if len(filtered) >= max(2, len(keywords) * 0.2):
+                        break
         
-        return filtered
+        return filtered[:20]  # Cap at 20 to maintain quality
+    
+    def _passes_enhanced_quality_checks(self, keyword: str) -> bool:
+        """Enhanced quality checks using training data insights"""
+        keyword_lower = keyword.lower().strip()
+        words = keyword_lower.split()
+        
+        # Length check: 1-4 words ideal
+        if not (1 <= len(words) <= 4):
+            return False
+        
+        # URL fragment check
+        url_patterns = [r'https?://', r'www\.', r'\.com', r'\.org', r'//', r'http']
+        for pattern in url_patterns:
+            if re.search(pattern, keyword_lower):
+                return False
+        
+        # Generic without context check
+        standalone_generic = {
+            'service', 'professional', 'respectful', 'quality', 'best', 'great',
+            'business', 'company', 'work', 'help', 'support', 'time', 'way'
+        }
+        
+        if len(words) == 1 and keyword_lower in standalone_generic:
+            return False
+        
+        # Malformed connector patterns
+        malformed_patterns = [
+            r'\bus\s+for\b', r'\bcomes\s+to\b', r'\bstorethe\b',
+            r'\bfor\s+your\b', r'\bto\s+your\b', r'\bwhen\s+it\s+comes\b'
+        ]
+        
+        for pattern in malformed_patterns:
+            if re.search(pattern, keyword_lower):
+                return False
+        
+        # Excessive stopwords
+        stopwords_extended = self.stop_words | {'us', 'for', 'comes', 'when', 'it', 'your'}
+        stop_count = sum(1 for word in words if word in stopwords_extended)
+        if stop_count > len(words) / 2:
+            return False
+        
+        return True
     
     def rank_keywords(self, keywords: List[str]) -> List[Tuple[str, float]]:
         """Rank keywords by their quality scores"""

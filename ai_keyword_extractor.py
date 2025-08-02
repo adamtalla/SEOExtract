@@ -579,6 +579,134 @@ class AIKeywordExtractor:
         
         return False
     
+    def _contains_url_fragments(self, keyword: str) -> bool:
+        """Check if keyword contains URL fragments"""
+        url_patterns = [
+            r'https?://',
+            r'www\.',
+            r'\.com',
+            r'\.org',
+            r'\.net',
+            r'\.edu',
+            r'\.gov',
+            r'//',
+            r'http[s]?',
+            r'ftp://'
+        ]
+        
+        for pattern in url_patterns:
+            if re.search(pattern, keyword, re.IGNORECASE):
+                return True
+        return False
+    
+    def _is_generic_without_context(self, keyword: str, words: List[str]) -> bool:
+        """Check if keyword contains generic words without meaningful context"""
+        # Single generic words that need context to be meaningful
+        standalone_generic = {
+            'service', 'services', 'professional', 'respectful', 'quality', 'best',
+            'top', 'great', 'excellent', 'amazing', 'perfect', 'ultimate', 'premium',
+            'leading', 'superior', 'complete', 'total', 'full', 'business', 'company',
+            'solution', 'solutions', 'system', 'systems', 'product', 'products',
+            'item', 'items', 'thing', 'things', 'stuff', 'work', 'job', 'help',
+            'support', 'care', 'time', 'way', 'place', 'area', 'location'
+        }
+        
+        # If single word and it's generic without context
+        if len(words) == 1 and keyword in standalone_generic:
+            return True
+        
+        # If phrase contains mostly generic words
+        if len(words) >= 2:
+            generic_count = sum(1 for word in words if word in standalone_generic)
+            if generic_count > len(words) / 2:
+                return True
+        
+        return False
+    
+    def _has_excessive_stopwords_connectors(self, keyword: str, words: List[str]) -> bool:
+        """Check for phrases with excessive stopwords or malformed connectors"""
+        # Common malformed phrases from training data
+        malformed_patterns = [
+            r'\bus\s+for\b',
+            r'\bcomes\s+to\b',
+            r'\bwhen\s+it\s+comes\b',
+            r'\bfor\s+your\b',
+            r'\bto\s+your\b',
+            r'\bof\s+the\b',
+            r'\bin\s+the\b',
+            r'\bon\s+the\b',
+            r'\bat\s+the\b',
+            r'\bwith\s+the\b',
+            r'\bthrough\s+the\b',
+            r'\bstorethe\b',  # Specific example from requirements
+            r'\b\w+the\b'     # Words concatenated with "the"
+        ]
+        
+        for pattern in malformed_patterns:
+            if re.search(pattern, keyword, re.IGNORECASE):
+                return True
+        
+        # Check for excessive connector words
+        connectors = {'and', 'or', 'but', 'for', 'with', 'through', 'via', 'by', 'from', 'to'}
+        connector_count = sum(1 for word in words if word in connectors)
+        
+        # More than 1 connector in a short phrase is excessive
+        if len(words) <= 3 and connector_count > 1:
+            return True
+        if len(words) <= 4 and connector_count > 2:
+            return True
+        
+        return False
+    
+    def _is_topic_irrelevant_single_word(self, keyword: str) -> bool:
+        """Check if single word is topic-irrelevant for SEO"""
+        irrelevant_words = {
+            # Navigation/UI terms
+            'home', 'menu', 'page', 'site', 'website', 'link', 'button', 'click',
+            'navigation', 'nav', 'header', 'footer', 'sidebar', 'content',
+            
+            # Generic actions without context
+            'call', 'contact', 'visit', 'browse', 'explore', 'discover', 'learn',
+            'find', 'search', 'look', 'see', 'view', 'check', 'try', 'test',
+            'start', 'begin', 'continue', 'finish', 'complete', 'end', 'stop',
+            'get', 'make', 'take', 'give', 'put', 'set', 'use', 'work',
+            
+            # Generic descriptors without specificity
+            'respectful', 'nice', 'good', 'bad', 'new', 'old', 'big', 'small',
+            'high', 'low', 'fast', 'slow', 'easy', 'hard', 'simple', 'complex',
+            
+            # Time/date terms
+            'today', 'now', 'soon', 'later', 'tomorrow', 'yesterday', 'time',
+            'date', 'year', 'month', 'week', 'day', 'hour', 'minute',
+            
+            # Common filler words
+            'more', 'most', 'some', 'any', 'all', 'every', 'each', 'many',
+            'few', 'several', 'various', 'different', 'same', 'other'
+        }
+        
+        return keyword in irrelevant_words
+    
+    def _is_malformed_phrase(self, keyword: str, words: List[str]) -> bool:
+        """Check if multi-word phrase is malformed or poorly constructed"""
+        # Phrases starting or ending with stopwords/connectors
+        if words[0] in {'the', 'a', 'an', 'and', 'or', 'but', 'for', 'with', 'to', 'from', 'by', 'of', 'in', 'on', 'at'}:
+            return True
+        
+        if words[-1] in {'the', 'a', 'an', 'and', 'or', 'but', 'for', 'with', 'to', 'from', 'by', 'of', 'in', 'on', 'at'}:
+            return True
+        
+        # Phrases with consecutive stopwords
+        for i in range(len(words) - 1):
+            if words[i] in self.stop_words and words[i + 1] in self.stop_words:
+                return True
+        
+        # Phrases with too many short words (likely fragments)
+        short_words = sum(1 for word in words if len(word) <= 2)
+        if short_words > len(words) / 2:
+            return True
+        
+        return False
+    
     def _is_generic_filler(self, keyword: str) -> bool:
         """Check if keyword is generic filler without SEO value"""
         keyword_lower = keyword.lower().strip()
@@ -744,50 +872,153 @@ class AIKeywordExtractor:
         return keywords
     
     def _extract_quality_noun_phrases(self, text: str) -> Dict[str, float]:
-        """Extract high-quality noun phrases using advanced NLP"""
+        """Extract high-quality noun phrases using enhanced tokenization and segmentation"""
         keywords = {}
         
         try:
-            # Clean text for better processing
+            # Enhanced text cleaning with better segmentation
             clean_text = re.sub(r'<[^>]+>', ' ', text)
-            clean_text = re.sub(r'[^\w\s\-]', ' ', clean_text)
+            clean_text = re.sub(r'[^\w\s\-\']', ' ', clean_text)  # Keep apostrophes
             clean_text = re.sub(r'\s+', ' ', clean_text)
             
-            # Tokenize and POS tag
-            tokens = word_tokenize(clean_text.lower())
-            pos_tags = pos_tag(tokens)
+            # Advanced tokenization with phrase boundary detection
+            sentences = self._segment_into_phrases(clean_text)
             
-            # Extract noun phrases with specific patterns
-            current_phrase = []
-            
-            for i, (word, pos) in enumerate(pos_tags):
-                # Include nouns, adjectives, and some verbs in gerund form
-                if (pos.startswith(('NN', 'JJ')) or 
-                    (pos == 'VBG' and word.endswith('ing')) or
-                    word in ['dust', 'power', 'hand', 'wood', 'metal']):
-                    
-                    if (word not in self.stop_words and 
-                        len(word) >= 3 and 
-                        not word.isdigit()):
-                        current_phrase.append(word)
-                else:
-                    # End of phrase - evaluate it
-                    if len(current_phrase) >= 2:
-                        phrase = ' '.join(current_phrase)
-                        if self._is_valuable_noun_phrase(phrase):
-                            keywords[phrase] = len(current_phrase) * 1.5
-                    current_phrase = []
-            
-            # Handle final phrase
-            if len(current_phrase) >= 2:
-                phrase = ' '.join(current_phrase)
-                if self._is_valuable_noun_phrase(phrase):
-                    keywords[phrase] = len(current_phrase) * 1.5
+            for sentence in sentences:
+                # Tokenize and POS tag each phrase segment
+                tokens = word_tokenize(sentence.lower())
+                pos_tags = pos_tag(tokens)
+                
+                # Extract noun phrases with enhanced pattern recognition
+                phrases = self._extract_noun_phrase_candidates(pos_tags)
+                
+                for phrase in phrases:
+                    if self._is_seo_valuable_phrase(phrase):
+                        # Score based on training data patterns
+                        score = self._calculate_phrase_training_score(phrase)
+                        if score > 0:
+                            keywords[phrase] = score
         
         except Exception as e:
-            logging.warning(f"Error in noun phrase extraction: {e}")
+            logging.warning(f"Error in enhanced noun phrase extraction: {e}")
         
         return keywords
+    
+    def _segment_into_phrases(self, text: str) -> List[str]:
+        """Segment text into meaningful phrase boundaries"""
+        # Split on multiple delimiters for better phrase segmentation
+        delimiters = r'[.!?;,:\-\|\n\r\t]+'
+        segments = re.split(delimiters, text)
+        
+        phrases = []
+        for segment in segments:
+            segment = segment.strip()
+            if len(segment) > 10:  # Only consider substantial segments
+                # Further split long segments on conjunctions
+                subsegments = re.split(r'\s+(?:and|or|but|however|therefore|moreover)\s+', segment, flags=re.IGNORECASE)
+                phrases.extend([s.strip() for s in subsegments if len(s.strip()) > 5])
+            elif len(segment) > 5:
+                phrases.append(segment)
+        
+        return phrases
+    
+    def _extract_noun_phrase_candidates(self, pos_tags: List[Tuple[str, str]]) -> List[str]:
+        """Extract noun phrase candidates with improved pattern matching"""
+        phrases = []
+        current_phrase = []
+        
+        # Enhanced POS patterns for better phrase detection
+        valuable_pos = {
+            'NN', 'NNS', 'NNP', 'NNPS',  # Nouns
+            'JJ', 'JJR', 'JJS',          # Adjectives  
+            'VBG',                        # Gerunds
+            'CD'                          # Numbers (for technical terms)
+        }
+        
+        for i, (word, pos) in enumerate(pos_tags):
+            # Build phrases with valuable POS tags
+            if (pos in valuable_pos and 
+                word not in self.stop_words and 
+                len(word) >= 3 and 
+                not word.isdigit() and
+                not self._contains_url_fragments(word)):
+                
+                current_phrase.append(word)
+            else:
+                # End current phrase and evaluate
+                if 2 <= len(current_phrase) <= 4:  # Ideal length range
+                    phrase = ' '.join(current_phrase)
+                    if not self._is_generic_without_context(phrase, current_phrase):
+                        phrases.append(phrase)
+                current_phrase = []
+        
+        # Handle final phrase
+        if 2 <= len(current_phrase) <= 4:
+            phrase = ' '.join(current_phrase)
+            if not self._is_generic_without_context(phrase, current_phrase):
+                phrases.append(phrase)
+        
+        return phrases
+    
+    def _is_seo_valuable_phrase(self, phrase: str) -> bool:
+        """Enhanced SEO value assessment using training data insights"""
+        words = phrase.split()
+        
+        # Length filter (1-4 words ideal)
+        if not (1 <= len(words) <= 4):
+            return False
+        
+        # Apply all enhanced filters
+        if (self._contains_url_fragments(phrase) or
+            self._is_generic_without_context(phrase, words) or
+            self._has_excessive_stopwords_connectors(phrase, words) or
+            (len(words) == 1 and self._is_topic_irrelevant_single_word(phrase)) or
+            (len(words) > 1 and self._is_malformed_phrase(phrase, words))):
+            return False
+        
+        return True
+    
+    def _calculate_phrase_training_score(self, phrase: str) -> float:
+        """Calculate phrase score based on training data patterns"""
+        base_score = 1.0
+        phrase_lower = phrase.lower()
+        
+        # Use training data if available
+        if TRAINER_AVAILABLE:
+            try:
+                trainer = get_keyword_trainer()
+                if trainer.is_trained:
+                    # Get AI-based score
+                    ai_score = trainer.calculate_keyword_score(phrase)
+                    # Get direct label score
+                    direct_score = trainer.score_keyword_direct(phrase, use_fuzzy=True)
+                    
+                    # Combine scores with weighted average
+                    combined_score = ai_score * 0.7 + (direct_score + 1) * 0.5 * 0.3
+                    return combined_score * len(phrase.split())  # Boost multi-word phrases
+            except Exception as e:
+                logging.warning(f"Training score calculation failed: {e}")
+        
+        # Fallback scoring based on phrase characteristics
+        word_count = len(phrase.split())
+        
+        # Prefer 2-3 word phrases
+        if word_count == 2:
+            base_score *= 1.5
+        elif word_count == 3:
+            base_score *= 1.3
+        elif word_count == 4:
+            base_score *= 1.1
+        
+        # Boost technical/specific terms
+        if self._is_technical_or_specific(phrase):
+            base_score *= 1.4
+        
+        # Boost commercial intent
+        if self._has_commercial_intent(phrase):
+            base_score *= 1.3
+        
+        return base_score
     
     def _extract_phrases_from_text(self, text: str) -> List[str]:
         """Extract meaningful phrases from text"""
@@ -869,7 +1100,7 @@ class AIKeywordExtractor:
         return has_substantial_noun or industry_terms
     
     def _is_high_quality_keyword(self, keyword: str) -> bool:
-        """Enhanced quality check for keywords"""
+        """Enhanced quality check for keywords with stronger filtering"""
         keyword_lower = keyword.lower().strip()
         words = keyword_lower.split()
         
@@ -879,18 +1110,39 @@ class AIKeywordExtractor:
             not re.match(r'^[a-zA-Z0-9\s\-]+$', keyword)):
             return False
         
-        # Single words must be substantial
+        # Prioritize 1-4 word keywords (ideal length range)
+        if len(words) > 4:
+            return False
+        
+        # Enhanced URL fragment detection
+        if self._contains_url_fragments(keyword_lower):
+            return False
+        
+        # Enhanced generic word filtering
+        if self._is_generic_without_context(keyword_lower, words):
+            return False
+        
+        # Enhanced stopword/connector filtering
+        if self._has_excessive_stopwords_connectors(keyword_lower, words):
+            return False
+        
+        # Single words must be substantial and topic-focused
         if len(words) == 1:
-            if (len(keyword_lower) < 5 or 
+            if (len(keyword_lower) < 4 or 
                 keyword_lower in self.stop_words or
-                self._is_generic_filler(keyword)):
+                self._is_generic_filler(keyword) or
+                self._is_topic_irrelevant_single_word(keyword_lower)):
                 return False
         
-        # Multi-word phrases should be meaningful
+        # Multi-word phrases should be meaningful and well-formed
         if len(words) >= 2:
             # Check for too many stop words
             stop_count = sum(1 for word in words if word in self.stop_words)
             if stop_count > len(words) / 2:
+                return False
+            
+            # Check for malformed phrases
+            if self._is_malformed_phrase(keyword_lower, words):
                 return False
         
         # Must not be a weak fragment
