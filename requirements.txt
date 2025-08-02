@@ -20,3 +20,4 @@ reportlab
 requests
 trafilatura
 werkzeug
+yake
