@@ -844,20 +844,20 @@ def extract_keywords():
             try:
                 from seo_audit import SEOAuditor
                 auditor = SEOAuditor()
-                    # Ensure keywords_list is properly defined
-                    keywords_list = keywords if isinstance(keywords, list) else []
-                    content_text = seo_data.get('content_text', '') if seo_data else ''
+                # Ensure keywords_list is properly defined
+                keywords_list = keywords if isinstance(keywords, list) else []
+                content_text = seo_data.get('content_text', '') if seo_data else ''
 
-                    audit_results = auditor.analyze_page(
-                        seo_data, keywords_list, content_text)
+                audit_results = auditor.analyze_page(
+                    seo_data, keywords_list, content_text)
 
-                    # Ensure audit_results is a list and limit
-                    if not isinstance(audit_results, list):
-                        audit_results = []
-                    audit_results = audit_results[:limits['seo_suggestions']]
-                except Exception as audit_error:
-                    logging.error(f"Error generating audit results: {str(audit_error)}")
+                # Ensure audit_results is a list and limit
+                if not isinstance(audit_results, list):
                     audit_results = []
+                audit_results = audit_results[:limits['seo_suggestions']]
+            except Exception as audit_error:
+                logging.error(f"Error generating audit results: {str(audit_error)}")
+                audit_results = []
 
         else:
             # Free plan - no suggestions
